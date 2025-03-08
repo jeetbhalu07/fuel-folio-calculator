@@ -6,7 +6,7 @@ import {
   FuelCompany, 
   getCompanyFuelPrice 
 } from '@/lib/calculate';
-import { GasStation, Factory, Cpu } from 'lucide-react';
+import { Car, Fuel, Cpu } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 interface CompanySelectorProps {
@@ -30,11 +30,11 @@ const CompanySelector: React.FC<CompanySelectorProps> = ({
   const getIcon = (iconType: string) => {
     switch (iconType) {
       case 'gasStation':
-        return <GasStation className="h-4 w-4 mr-2" />;
+        return <Fuel className="h-4 w-4 mr-2" />;
       case 'gasMeter':
         return <Cpu className="h-4 w-4 mr-2" />;
       default:
-        return <Factory className="h-4 w-4 mr-2" />;
+        return <Car className="h-4 w-4 mr-2" />;
     }
   };
 
