@@ -6,6 +6,8 @@ class Header extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    
     return Column(
       children: [
         Row(
@@ -18,7 +20,7 @@ class Header extends StatelessWidget {
             ),
             const SizedBox(width: 8),
             Text(
-              'Fuel Calc',
+              'Fuel Calc Pro',
               style: TextStyle(
                 fontSize: 28,
                 fontWeight: FontWeight.bold,
@@ -28,12 +30,21 @@ class Header extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 8),
-        Text(
-          'Calculate your fuel costs quickly and efficiently',
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            color: Colors.grey[600],
-            fontSize: 16,
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+          decoration: BoxDecoration(
+            color: isDarkMode 
+                ? Theme.of(context).primaryColor.withOpacity(0.15)
+                : Theme.of(context).primaryColor.withOpacity(0.08),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Text(
+            'Calculate your fuel costs quickly and efficiently',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: isDarkMode ? Colors.grey[300] : Colors.grey[700],
+              fontSize: 16,
+            ),
           ),
         ),
       ],

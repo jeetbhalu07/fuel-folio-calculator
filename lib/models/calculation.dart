@@ -15,6 +15,18 @@ class CalculationInput {
     required this.distance,
     required this.mileage,
   });
+  
+  CalculationInput copyWith({
+    double? fuelPrice,
+    double? distance,
+    double? mileage,
+  }) {
+    return CalculationInput(
+      fuelPrice: fuelPrice ?? this.fuelPrice,
+      distance: distance ?? this.distance,
+      mileage: mileage ?? this.mileage,
+    );
+  }
 }
 
 class CalculationResult {
@@ -54,5 +66,27 @@ CalculationInput getDefaultValues(FuelType fuelType) {
       return CalculationInput(fuelPrice: 88.67, distance: 100, mileage: 20);
     case FuelType.cng:
       return CalculationInput(fuelPrice: 76.21, distance: 100, mileage: 25);
+  }
+}
+
+String getFuelTypeName(FuelType type) {
+  switch (type) {
+    case FuelType.petrol:
+      return 'Petrol';
+    case FuelType.diesel:
+      return 'Diesel';
+    case FuelType.cng:
+      return 'CNG Gas';
+  }
+}
+
+IconData getFuelTypeIcon(FuelType type) {
+  switch (type) {
+    case FuelType.petrol:
+      return Icons.local_gas_station;
+    case FuelType.diesel:
+      return Icons.directions_car;
+    case FuelType.cng:
+      return Icons.gas_meter;
   }
 }
