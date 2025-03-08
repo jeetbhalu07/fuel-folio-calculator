@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/calculation.dart';
 import '../models/calculation_history_provider.dart';
+import '../models/fuel_company.dart';
 import 'fuel_type_selector.dart';
+import 'company_selector.dart';
 import 'calculator_input.dart';
 import 'calculator_result.dart';
 
@@ -16,6 +18,7 @@ class Calculator extends StatefulWidget {
 
 class _CalculatorState extends State<Calculator> with SingleTickerProviderStateMixin {
   FuelType selectedFuelType = FuelType.petrol;
+  late FuelCompany selectedCompany;
   late CalculationInput inputs;
   late CalculationResult result;
   late AnimationController _animationController;
@@ -25,7 +28,10 @@ class _CalculatorState extends State<Calculator> with SingleTickerProviderStateM
   @override
   void initState() {
     super.initState();
+    selectedCompany = getDefaultCompany(selectedFuelType);
     inputs = getDefaultValues(selectedFuelType);
+    // Update fuel price based on selected company
+    inputs.fuelPrice = getCompanyFuelPrice(selectedCompany, selectedFuelType);
     result = calculateFuelCost(inputs);
     
     _animationController = AnimationController(
@@ -52,7 +58,19 @@ class _CalculatorState extends State<Calculator> with SingleTickerProviderStateM
   void handleFuelTypeChange(FuelType type) {
     setState(() {
       selectedFuelType = type;
+      selectedCompany = getDefaultCompany(type);
       inputs = getDefaultValues(type);
+      // Update fuel price based on selected company
+      inputs.fuelPrice = getCompanyFuelPrice(selectedCompany, selectedFuelType);
+      result = calculateFuelCost(inputs);
+    });
+  }
+
+  void handleCompanyChange(FuelCompany company) {
+    setState(() {
+      selectedCompany = company;
+      // Update only the fuel price when company changes
+      inputs.fuelPrice = getCompanyFuelPrice(company, selectedFuelType);
       result = calculateFuelCost(inputs);
     });
   }
@@ -77,6 +95,8 @@ class _CalculatorState extends State<Calculator> with SingleTickerProviderStateM
   void handleReset() {
     setState(() {
       inputs = getDefaultValues(selectedFuelType);
+      // Update fuel price based on selected company
+      inputs.fuelPrice = getCompanyFuelPrice(selectedCompany, selectedFuelType);
       result = calculateFuelCost(inputs);
     });
   }
@@ -115,6 +135,14 @@ class _CalculatorState extends State<Calculator> with SingleTickerProviderStateM
             selectedFuelType: selectedFuelType,
             onChanged: handleFuelTypeChange,
           ),
+          
+          // Company Selector
+          CompanySelector(
+            selectedFuelType: selectedFuelType,
+            selectedCompany: selectedCompany,
+            onChanged: handleCompanyChange,
+          ),
+          
           const SizedBox(height: 16),
           
           // Glass Card for Inputs

@@ -3,35 +3,58 @@ import React, { useState, useEffect } from 'react';
 import CalculatorInput from '@/components/CalculatorInput';
 import CalculatorResult from '@/components/CalculatorResult';
 import FuelTypeSelector from '@/components/FuelTypeSelector';
+import CompanySelector from '@/components/CompanySelector';
 import { 
   calculateFuelCost, 
   getFuelUnit, 
   getDefaultValues,
+  getDefaultCompany,
+  getCompanyFuelPrice,
   CalculationInput,
-  FuelType 
+  FuelType,
+  FuelCompany
 } from '@/lib/calculate';
 import { Button } from '@/components/ui/button';
 import { RotateCw } from 'lucide-react';
 
 const Calculator: React.FC = () => {
   const [fuelType, setFuelType] = useState<FuelType>('petrol');
+  const [selectedCompany, setSelectedCompany] = useState<FuelCompany>(getDefaultCompany('petrol'));
   const [inputs, setInputs] = useState<CalculationInput>(getDefaultValues('petrol'));
   const [result, setResult] = useState(calculateFuelCost(inputs));
   const [fuelUnit, setFuelUnit] = useState(getFuelUnit('petrol'));
   
+  // Update everything when fuel type changes
   useEffect(() => {
+    const company = getDefaultCompany(fuelType);
+    setSelectedCompany(company);
+    
     const defaultValues = getDefaultValues(fuelType);
+    // Update with company's fuel price
+    defaultValues.fuelPrice = getCompanyFuelPrice(company, fuelType);
+    
     setInputs(defaultValues);
     setFuelUnit(getFuelUnit(fuelType));
     setResult(calculateFuelCost(defaultValues));
   }, [fuelType]);
 
+  // Recalculate result when inputs change
   useEffect(() => {
     setResult(calculateFuelCost(inputs));
   }, [inputs]);
 
   const handleFuelTypeChange = (type: FuelType) => {
     setFuelType(type);
+  };
+
+  const handleCompanyChange = (company: FuelCompany) => {
+    setSelectedCompany(company);
+    
+    // Update just the fuel price based on the selected company
+    setInputs(prev => ({
+      ...prev,
+      fuelPrice: getCompanyFuelPrice(company, fuelType)
+    }));
   };
 
   const handleInputChange = (field: keyof CalculationInput, value: number) => {
@@ -42,7 +65,10 @@ const Calculator: React.FC = () => {
   };
 
   const handleReset = () => {
-    setInputs(getDefaultValues(fuelType));
+    const defaultValues = getDefaultValues(fuelType);
+    // Use the current company's price
+    defaultValues.fuelPrice = getCompanyFuelPrice(selectedCompany, fuelType);
+    setInputs(defaultValues);
   };
 
   return (
@@ -50,6 +76,12 @@ const Calculator: React.FC = () => {
       <FuelTypeSelector 
         selectedFuelType={fuelType} 
         onChange={handleFuelTypeChange} 
+      />
+      
+      <CompanySelector
+        selectedFuelType={fuelType}
+        selectedCompany={selectedCompany}
+        onCompanyChange={handleCompanyChange}
       />
       
       <div className="glass-card rounded-2xl p-6 shadow-lg">
