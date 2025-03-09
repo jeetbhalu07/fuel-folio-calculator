@@ -17,7 +17,7 @@ import {
 } from '@/lib/calculate';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { RotateCw, Calculator as CalculatorIcon, DollarSign } from 'lucide-react';
+import { RotateCw, Calculator as CalculatorIcon, IndianRupee } from 'lucide-react';
 
 const Calculator: React.FC = () => {
   const [fuelType, setFuelType] = useState<FuelType>('petrol');
@@ -94,7 +94,7 @@ const Calculator: React.FC = () => {
             <span>Trip Calculator</span>
           </TabsTrigger>
           <TabsTrigger value="purchase" className="flex items-center gap-2">
-            <DollarSign className="h-4 w-4" />
+            <IndianRupee className="h-4 w-4" />
             <span>Purchase Calculator</span>
           </TabsTrigger>
         </TabsList>
@@ -106,7 +106,7 @@ const Calculator: React.FC = () => {
               label="Fuel Price"
               value={inputs.fuelPrice}
               onChange={(value) => handleInputChange('fuelPrice', value)}
-              unit={`$ per ${fuelUnit}`}
+              unit={`₹ per ${fuelUnit}`}
               placeholder="Enter fuel price"
               animationDelay="animate-delay-100"
             />

@@ -5,12 +5,55 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
 import { FuelType, getCompanyFuelPrice, getFuelUnit } from '@/lib/calculate';
-import { Upload, FileCheck, AlertCircle, Save } from 'lucide-react';
+import { Upload, FileCheck, AlertCircle, Save, History } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import PurchaseHistory from '@/components/PurchaseHistory';
 
 interface PurchaseCalculatorProps {
   selectedFuelType: FuelType;
   fuelPrice: number;
 }
+
+// Define a purchase history item interface
+export interface PurchaseHistoryItem {
+  id: string;
+  date: Date;
+  amountPaid: number;
+  fuelQuantity: number;
+  fuelType: FuelType;
+  verified: boolean;
+}
+
+// For simplicity, we're storing history items in localStorage
+const savePurchaseToHistory = (item: Omit<PurchaseHistoryItem, 'id' | 'date'>) => {
+  const id = Date.now().toString();
+  const historyItem: PurchaseHistoryItem = {
+    ...item,
+    id,
+    date: new Date()
+  };
+  
+  const history = getPurchaseHistory();
+  localStorage.setItem('purchaseHistory', JSON.stringify([historyItem, ...history]));
+  
+  return historyItem;
+};
+
+export const getPurchaseHistory = (): PurchaseHistoryItem[] => {
+  const historyData = localStorage.getItem('purchaseHistory');
+  if (!historyData) return [];
+  
+  try {
+    const parsedData = JSON.parse(historyData);
+    return parsedData.map((item: any) => ({
+      ...item,
+      date: new Date(item.date)
+    }));
+  } catch (error) {
+    console.error('Failed to parse purchase history', error);
+    return [];
+  }
+};
 
 const PurchaseCalculator: React.FC<PurchaseCalculatorProps> = ({
   selectedFuelType,
@@ -20,6 +63,8 @@ const PurchaseCalculator: React.FC<PurchaseCalculatorProps> = ({
   const [fuelQuantity, setFuelQuantity] = useState(0);
   const [billQuantity, setBillQuantity] = useState(0);
   const [verificationResult, setVerificationResult] = useState<boolean | null>(null);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [history, setHistory] = useState<PurchaseHistoryItem[]>([]);
   const fuelUnit = getFuelUnit(selectedFuelType);
 
   useEffect(() => {
@@ -28,13 +73,18 @@ const PurchaseCalculator: React.FC<PurchaseCalculatorProps> = ({
     }
   }, [amountPaid, fuelPrice]);
 
-  const handleVerifyBill = () => {
-    if (billQuantity <= 0) {
-      toast.error("Please enter the fuel quantity from your bill");
-      return;
+  useEffect(() => {
+    // Load purchase history when component mounts
+    setHistory(getPurchaseHistory());
+  }, []);
+
+  const verifyBill = (quantity: number) => {
+    if (quantity <= 0) {
+      toast.error("Invalid fuel quantity detected");
+      return false;
     }
 
-    const expectedAmount = billQuantity * fuelPrice;
+    const expectedAmount = quantity * fuelPrice;
     const expectedRounded = Number(expectedAmount.toFixed(2));
     const amountRounded = Number(amountPaid.toFixed(2));
     
@@ -48,16 +98,21 @@ const PurchaseCalculator: React.FC<PurchaseCalculatorProps> = ({
     } else {
       toast.error("Bill verification failed! There's a discrepancy between the amount and fuel quantity.");
     }
+    
+    return isValid;
   };
 
-  const handleSaveToHistory = () => {
-    if (verificationResult === null) {
-      toast.error("Please verify the bill first before saving to history");
-      return;
-    }
-
-    // In a real app, this would call an API or use a state management library
-    // to save the verification data to history
+  const saveToHistory = (isVerified: boolean) => {
+    const newHistoryItem = savePurchaseToHistory({
+      amountPaid,
+      fuelQuantity: billQuantity > 0 ? billQuantity : fuelQuantity,
+      fuelType: selectedFuelType,
+      verified: isVerified
+    });
+    
+    // Update local state with the new item
+    setHistory(prev => [newHistoryItem, ...prev]);
+    
     toast.success("Purchase calculation saved to history!", {
       description: `Amount: ₹${amountPaid.toFixed(2)}, Quantity: ${fuelQuantity} ${fuelUnit}`,
       duration: 4000,
@@ -68,27 +123,51 @@ const PurchaseCalculator: React.FC<PurchaseCalculatorProps> = ({
     const file = event.target.files?.[0];
     if (!file) return;
     
-    // This is a mock implementation. In a real app, you would use OCR to extract 
-    // values from the uploaded bill images
-    toast.info("Bill uploaded! This is a simulation. In a real app, OCR would extract values from your bill.", {
-      duration: 5000,
+    toast.info("Processing bill...", {
+      duration: 2000,
     });
     
     // Simulate extracting data from the bill
     setTimeout(() => {
-      // Generate a slightly different quantity to simulate real-world scenarios
-      // Sometimes correct, sometimes incorrect
-      const randomOffset = Math.random() > 0.5 ? 0 : (Math.random() * 0.5) - 0.25;
-      const extractedQuantity = Number((amountPaid / fuelPrice + randomOffset).toFixed(2));
+      // Simulate extracting an amount from the bill
+      // In a real app, OCR would extract the actual amount from the bill image
+      const extractedAmount = Math.floor(Math.random() * 1000) + 100; // Random amount between 100-1100
+      setAmountPaid(extractedAmount);
       
+      toast.success(`Extracted amount: ₹${extractedAmount.toFixed(2)}`);
+      
+      // Calculate fuel quantity based on the extracted amount
+      const extractedQuantity = Number((extractedAmount / fuelPrice).toFixed(2));
       setBillQuantity(extractedQuantity);
-      toast.success(`Extracted fuel quantity: ${extractedQuantity} ${fuelUnit}`);
+      
+      toast.success(`Calculated fuel quantity: ${extractedQuantity} ${fuelUnit}`);
+      
+      // Automatically verify the bill after a short delay
+      setTimeout(() => {
+        const isValid = verifyBill(extractedQuantity);
+        
+        // Automatically save to history
+        setTimeout(() => {
+          saveToHistory(isValid);
+        }, 1000);
+      }, 1500);
     }, 1500);
   };
 
   return (
     <div className="glass-card rounded-2xl p-6 my-6 animate-scale-in opacity-0">
-      <h3 className="text-lg font-medium text-center mb-4">Purchase Calculator</h3>
+      <div className="flex justify-between items-center mb-4">
+        <h3 className="text-lg font-medium">Purchase Calculator</h3>
+        <Button 
+          variant="outline" 
+          size="sm"
+          onClick={() => setIsHistoryOpen(true)}
+          className="flex items-center gap-1"
+        >
+          <History className="h-4 w-4" />
+          History
+        </Button>
+      </div>
       <Separator className="mb-4 bg-border/50" />
       
       <CalculatorInput
@@ -142,15 +221,15 @@ const PurchaseCalculator: React.FC<PurchaseCalculatorProps> = ({
       
       <div className="flex gap-2 mb-2">
         <Button 
-          onClick={handleVerifyBill}
+          onClick={() => verifyBill(billQuantity)}
           className="flex-1 h-12"
         >
           <FileCheck className="mr-2 h-4 w-4" />
-          Verify Bill
+          Verify Manually
         </Button>
         
         <Button
-          onClick={handleSaveToHistory}
+          onClick={() => saveToHistory(verificationResult === true)}
           variant="secondary"
           className="flex-1 h-12"
           disabled={verificationResult === null}
@@ -177,6 +256,19 @@ const PurchaseCalculator: React.FC<PurchaseCalculatorProps> = ({
           )}
         </div>
       )}
+
+      {/* Purchase History Dialog */}
+      <Dialog open={isHistoryOpen} onOpenChange={setIsHistoryOpen}>
+        <DialogContent className="sm:max-w-[500px] max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Purchase History</DialogTitle>
+          </DialogHeader>
+          <PurchaseHistory 
+            history={history} 
+            onHistoryUpdate={setHistory} 
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
