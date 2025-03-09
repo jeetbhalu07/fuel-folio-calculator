@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
 import { FuelType, getCompanyFuelPrice, getFuelUnit } from '@/lib/calculate';
-import { Upload, FileCheck, AlertCircle } from 'lucide-react';
+import { Upload, FileCheck, AlertCircle, Save } from 'lucide-react';
 
 interface PurchaseCalculatorProps {
   selectedFuelType: FuelType;
@@ -50,6 +50,20 @@ const PurchaseCalculator: React.FC<PurchaseCalculatorProps> = ({
     }
   };
 
+  const handleSaveToHistory = () => {
+    if (verificationResult === null) {
+      toast.error("Please verify the bill first before saving to history");
+      return;
+    }
+
+    // In a real app, this would call an API or use a state management library
+    // to save the verification data to history
+    toast.success("Purchase calculation saved to history!", {
+      description: `Amount: ₹${amountPaid.toFixed(2)}, Quantity: ${fuelQuantity} ${fuelUnit}`,
+      duration: 4000,
+    });
+  };
+
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -82,7 +96,7 @@ const PurchaseCalculator: React.FC<PurchaseCalculatorProps> = ({
         label="Amount Paid"
         value={amountPaid}
         onChange={setAmountPaid}
-        unit="$"
+        unit="₹"
         placeholder="Enter amount paid"
         animationDelay="animate-delay-100"
       />
@@ -126,12 +140,25 @@ const PurchaseCalculator: React.FC<PurchaseCalculatorProps> = ({
         />
       </div>
       
-      <Button 
-        onClick={handleVerifyBill}
-        className="w-full h-12 mb-2"
-      >
-        Verify Bill
-      </Button>
+      <div className="flex gap-2 mb-2">
+        <Button 
+          onClick={handleVerifyBill}
+          className="flex-1 h-12"
+        >
+          <FileCheck className="mr-2 h-4 w-4" />
+          Verify Bill
+        </Button>
+        
+        <Button
+          onClick={handleSaveToHistory}
+          variant="secondary"
+          className="flex-1 h-12"
+          disabled={verificationResult === null}
+        >
+          <Save className="mr-2 h-4 w-4" />
+          Save to History
+        </Button>
+      </div>
       
       {verificationResult !== null && (
         <div className={`mt-4 p-3 rounded-xl flex items-center ${
