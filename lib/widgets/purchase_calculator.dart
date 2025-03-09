@@ -1,0 +1,357 @@
+
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import '../models/calculation.dart';
+import 'calculator_input.dart';
+
+class PurchaseCalculator extends StatefulWidget {
+  final FuelType selectedFuelType;
+  final double fuelPrice;
+
+  const PurchaseCalculator({
+    Key? key,
+    required this.selectedFuelType,
+    required this.fuelPrice,
+  }) : super(key: key);
+
+  @override
+  State<PurchaseCalculator> createState() => _PurchaseCalculatorState();
+}
+
+class _PurchaseCalculatorState extends State<PurchaseCalculator> {
+  double amountPaid = 200.0;
+  double fuelQuantity = 0.0;
+  double billQuantity = 0.0;
+  bool? verificationResult;
+  bool _showSuccessMessage = false;
+  bool _showVerificationMessage = false;
+  
+  @override
+  void initState() {
+    super.initState();
+    _calculateFuelQuantity();
+  }
+  
+  @override
+  void didUpdateWidget(PurchaseCalculator oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.fuelPrice != widget.fuelPrice) {
+      _calculateFuelQuantity();
+    }
+  }
+  
+  void _calculateFuelQuantity() {
+    if (widget.fuelPrice > 0) {
+      setState(() {
+        fuelQuantity = double.parse((amountPaid / widget.fuelPrice).toStringAsFixed(2));
+      });
+    }
+  }
+  
+  void _handleAmountChanged(double value) {
+    setState(() {
+      amountPaid = value;
+      _calculateFuelQuantity();
+    });
+  }
+  
+  void _handleBillQuantityChanged(double value) {
+    setState(() {
+      billQuantity = value;
+    });
+  }
+  
+  void _verifyBill() {
+    if (billQuantity <= 0) {
+      _showSnackBar("Please enter the fuel quantity from your bill", Colors.red);
+      return;
+    }
+    
+    final expectedAmount = billQuantity * widget.fuelPrice;
+    final expectedRounded = double.parse(expectedAmount.toStringAsFixed(2));
+    final amountRounded = double.parse(amountPaid.toStringAsFixed(2));
+    
+    // Allow a small tolerance for rounding errors
+    final isValid = (expectedRounded - amountRounded).abs() <= 0.05;
+    
+    setState(() {
+      verificationResult = isValid;
+      _showVerificationMessage = true;
+    });
+    
+    _showSnackBar(
+      isValid 
+          ? "Bill verification successful! The amount matches the fuel quantity."
+          : "Bill verification failed! There's a discrepancy between the amount and fuel quantity.",
+      isValid ? Colors.green : Colors.red
+    );
+    
+    // Hide message after 5 seconds
+    Future.delayed(const Duration(seconds: 5), () {
+      if (mounted) {
+        setState(() {
+          _showVerificationMessage = false;
+        });
+      }
+    });
+  }
+  
+  void _uploadBill() {
+    // In a real app, this would use camera/gallery and OCR
+    // For now, we'll simulate extracting data
+    _showSnackBar(
+      "Bill uploaded! This is a simulation. In a real app, OCR would extract values from your bill.",
+      Colors.blue
+    );
+    
+    // Simulate processing
+    Future.delayed(const Duration(milliseconds: 1500), () {
+      if (mounted) {
+        // Generate a slightly different quantity to simulate real-world scenarios
+        final random = DateTime.now().millisecondsSinceEpoch % 100 / 100;
+        final randomOffset = random > 0.5 ? 0 : (random * 0.5) - 0.25;
+        final extractedQuantity = double.parse(
+          (amountPaid / widget.fuelPrice + randomOffset).toStringAsFixed(2)
+        );
+        
+        setState(() {
+          billQuantity = extractedQuantity;
+          _showSuccessMessage = true;
+        });
+        
+        _showSnackBar(
+          "Extracted fuel quantity: $extractedQuantity ${getFuelUnit(widget.selectedFuelType)}",
+          Colors.green
+        );
+        
+        // Hide success message after 2 seconds
+        Future.delayed(const Duration(seconds: 2), () {
+          if (mounted) {
+            setState(() {
+              _showSuccessMessage = false;
+            });
+          }
+        });
+      }
+    });
+  }
+  
+  void _showSnackBar(String message, Color color) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(message),
+      backgroundColor: color,
+      duration: const Duration(seconds: 3),
+    ));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final fuelUnit = getFuelUnit(widget.selectedFuelType);
+    
+    return Container(
+      decoration: BoxDecoration(
+        color: isDarkMode 
+            ? Colors.grey[900]!.withOpacity(0.7) 
+            : Colors.white.withOpacity(0.9),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            spreadRadius: 0,
+          ),
+        ],
+        border: Border.all(
+          color: isDarkMode 
+              ? Colors.white.withOpacity(0.1)
+              : Colors.white.withOpacity(0.3),
+          width: 1,
+        ),
+      ),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Center(
+            child: Text(
+              'Purchase Calculator',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          const Divider(height: 24),
+          
+          CalculatorInput(
+            id: 'amount-paid',
+            label: 'Amount Paid',
+            value: amountPaid,
+            onChanged: _handleAmountChanged,
+            unit: '\$',
+            placeholder: 'Enter amount paid',
+          ),
+          
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.blue.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Fuel Quantity:',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey[700],
+                  ),
+                ),
+                Text(
+                  '$fuelQuantity $fuelUnit',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          
+          const Divider(height: 32),
+          
+          const Text(
+            'Verify Your Bill',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          
+          const SizedBox(height: 16),
+          
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: _uploadBill,
+                  icon: const Icon(Icons.upload_file),
+                  label: const Text('Upload Bill'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: isDarkMode ? Colors.grey[800] : Colors.grey[200],
+                    foregroundColor: isDarkMode ? Colors.white : Colors.grey[800],
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: CalculatorInput(
+                  id: 'bill-quantity',
+                  label: 'Quantity on Bill',
+                  value: billQuantity,
+                  onChanged: _handleBillQuantityChanged,
+                  unit: fuelUnit,
+                  placeholder: 'Enter quantity',
+                ),
+              ),
+            ],
+          ),
+          
+          const SizedBox(height: 16),
+          
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: _verifyBill,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Theme.of(context).primaryColor,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: const Text('Verify Bill'),
+            ),
+          ),
+          
+          // Success upload message
+          if (_showSuccessMessage)
+            Container(
+              margin: const EdgeInsets.only(top: 10),
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.green.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: Colors.green.withOpacity(0.5),
+                ),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.check_circle,
+                    color: Colors.green,
+                    size: 16,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Extracted $billQuantity $fuelUnit from bill',
+                    style: const TextStyle(
+                      color: Colors.green,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            
+          // Verification result
+          if (_showVerificationMessage && verificationResult != null)
+            Container(
+              margin: const EdgeInsets.only(top: 10),
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: verificationResult! 
+                    ? Colors.green.withOpacity(0.1)
+                    : Colors.red.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: verificationResult!
+                      ? Colors.green.withOpacity(0.5)
+                      : Colors.red.withOpacity(0.5),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    verificationResult! ? Icons.check_circle : Icons.warning,
+                    color: verificationResult! ? Colors.green : Colors.red,
+                    size: 16,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      verificationResult!
+                          ? 'Bill is correct! The fuel quantity matches the amount paid.'
+                          : 'Bill may be incorrect! The fuel quantity doesn\'t match the amount paid.',
+                      style: TextStyle(
+                        color: verificationResult! ? Colors.green : Colors.red,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}

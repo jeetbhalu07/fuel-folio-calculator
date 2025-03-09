@@ -41,6 +41,32 @@ class CalculationResult {
   });
 }
 
+// New class for purchase calculation
+class PurchaseCalculation {
+  final double amountPaid;
+  final double fuelPrice;
+  
+  PurchaseCalculation({
+    required this.amountPaid,
+    required this.fuelPrice,
+  });
+  
+  double get fuelQuantity {
+    if (fuelPrice <= 0) return 0;
+    return double.parse((amountPaid / fuelPrice).toStringAsFixed(2));
+  }
+  
+  // Verify if the bill matches the expected calculation
+  bool verifyBill(double claimedQuantity) {
+    final expectedAmount = claimedQuantity * fuelPrice;
+    final expectedRounded = double.parse(expectedAmount.toStringAsFixed(2));
+    final amountRounded = double.parse(amountPaid.toStringAsFixed(2));
+    
+    // Allow a small tolerance (0.05) for rounding errors
+    return (expectedRounded - amountRounded).abs() <= 0.05;
+  }
+}
+
 CalculationResult calculateFuelCost(CalculationInput input) {
   // Avoid division by zero
   if (input.mileage <= 0) {
@@ -54,6 +80,12 @@ CalculationResult calculateFuelCost(CalculationInput input) {
     fuelRequired: double.parse(fuelRequired.toStringAsFixed(2)),
     totalCost: double.parse(totalCost.toStringAsFixed(2))
   );
+}
+
+// New function to calculate fuel quantity based on amount paid
+double calculateFuelQuantity(double amountPaid, double fuelPrice) {
+  if (fuelPrice <= 0) return 0;
+  return double.parse((amountPaid / fuelPrice).toStringAsFixed(2));
 }
 
 String getFuelUnit(FuelType fuelType) {

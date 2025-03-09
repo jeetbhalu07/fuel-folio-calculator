@@ -8,6 +8,7 @@ import 'fuel_type_selector.dart';
 import 'company_selector.dart';
 import 'calculator_input.dart';
 import 'calculator_result.dart';
+import 'purchase_calculator.dart';
 
 class Calculator extends StatefulWidget {
   const Calculator({Key? key}) : super(key: key);
@@ -24,6 +25,7 @@ class _CalculatorState extends State<Calculator> with SingleTickerProviderStateM
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
   bool _showSuccessMessage = false;
+  int _selectedTabIndex = 0;
 
   @override
   void initState() {
@@ -145,139 +147,236 @@ class _CalculatorState extends State<Calculator> with SingleTickerProviderStateM
           
           const SizedBox(height: 16),
           
-          // Glass Card for Inputs
+          // Tab Selector
           Container(
+            margin: const EdgeInsets.only(bottom: 16),
             decoration: BoxDecoration(
-              color: isDarkMode 
-                  ? Colors.grey[900]!.withOpacity(0.7) 
-                  : Colors.white.withOpacity(0.9),
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 10,
-                  spreadRadius: 0,
-                ),
-              ],
-              border: Border.all(
-                color: isDarkMode 
-                    ? Colors.white.withOpacity(0.1)
-                    : Colors.white.withOpacity(0.3),
-                width: 1,
-              ),
+              color: isDarkMode
+                  ? Colors.grey[850]
+                  : Colors.grey[200],
+              borderRadius: BorderRadius.circular(12),
             ),
-            padding: const EdgeInsets.all(16),
-            child: Column(
+            child: Row(
               children: [
-                CalculatorInput(
-                  id: 'fuel-price',
-                  label: 'Fuel Price',
-                  value: inputs.fuelPrice,
-                  onChanged: (value) => handleInputChange('fuelPrice', value),
-                  unit: '\$ per ${getFuelUnit(selectedFuelType)}',
-                  placeholder: 'Enter fuel price',
-                ),
-                
-                CalculatorInput(
-                  id: 'distance',
-                  label: 'Distance',
-                  value: inputs.distance,
-                  onChanged: (value) => handleInputChange('distance', value),
-                  unit: 'km',
-                  placeholder: 'Enter distance',
-                ),
-                
-                CalculatorInput(
-                  id: 'mileage',
-                  label: 'Vehicle Mileage',
-                  value: inputs.mileage,
-                  onChanged: (value) => handleInputChange('mileage', value),
-                  unit: 'km per ${getFuelUnit(selectedFuelType)}',
-                  placeholder: 'Enter mileage',
-                ),
-                
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed: handleReset,
-                        icon: const Icon(Icons.refresh),
-                        label: const Text('Reset'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: isDarkMode 
-                              ? Colors.grey[800] 
-                              : Colors.grey[200],
-                          foregroundColor: isDarkMode 
-                              ? Colors.white
-                              : Colors.grey[800],
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
+                Expanded(
+                  child: InkWell(
+                    onTap: () => setState(() => _selectedTabIndex = 0),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      decoration: BoxDecoration(
+                        color: _selectedTabIndex == 0
+                            ? Theme.of(context).primaryColor
+                            : Colors.transparent,
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed: saveCalculation,
-                        icon: const Icon(Icons.save),
-                        label: const Text('Save'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Theme.of(context).primaryColor,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.calculate,
+                            size: 16,
+                            color: _selectedTabIndex == 0
+                                ? Colors.white
+                                : Colors.grey[700],
                           ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                
-                // Success message
-                if (_showSuccessMessage)
-                  Container(
-                    margin: const EdgeInsets.only(top: 10),
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: Colors.green.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: Colors.green.withOpacity(0.5),
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(
-                          Icons.check_circle,
-                          color: Colors.green,
-                          size: 16,
-                        ),
-                        const SizedBox(width: 8),
-                        const Text(
-                          'Calculation saved successfully',
-                          style: TextStyle(
-                            color: Colors.green,
-                            fontSize: 12,
+                          const SizedBox(width: 8),
+                          Text(
+                            'Trip Calculator',
+                            style: TextStyle(
+                              color: _selectedTabIndex == 0
+                                  ? Colors.white
+                                  : Colors.grey[700],
+                              fontWeight: FontWeight.w500,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
+                ),
+                Expanded(
+                  child: InkWell(
+                    onTap: () => setState(() => _selectedTabIndex = 1),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      decoration: BoxDecoration(
+                        color: _selectedTabIndex == 1
+                            ? Theme.of(context).primaryColor
+                            : Colors.transparent,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.attach_money,
+                            size: 16,
+                            color: _selectedTabIndex == 1
+                                ? Colors.white
+                                : Colors.grey[700],
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Purchase',
+                            style: TextStyle(
+                              color: _selectedTabIndex == 1
+                                  ? Colors.white
+                                  : Colors.grey[700],
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
           
-          const SizedBox(height: 16),
+          // Tab Content
+          if (_selectedTabIndex == 0) ...[
+            // Trip Calculator
+            Container(
+              decoration: BoxDecoration(
+                color: isDarkMode 
+                    ? Colors.grey[900]!.withOpacity(0.7) 
+                    : Colors.white.withOpacity(0.9),
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 10,
+                    spreadRadius: 0,
+                  ),
+                ],
+                border: Border.all(
+                  color: isDarkMode 
+                      ? Colors.white.withOpacity(0.1)
+                      : Colors.white.withOpacity(0.3),
+                  width: 1,
+                ),
+              ),
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  CalculatorInput(
+                    id: 'fuel-price',
+                    label: 'Fuel Price',
+                    value: inputs.fuelPrice,
+                    onChanged: (value) => handleInputChange('fuelPrice', value),
+                    unit: '\$ per ${getFuelUnit(selectedFuelType)}',
+                    placeholder: 'Enter fuel price',
+                  ),
+                  
+                  CalculatorInput(
+                    id: 'distance',
+                    label: 'Distance',
+                    value: inputs.distance,
+                    onChanged: (value) => handleInputChange('distance', value),
+                    unit: 'km',
+                    placeholder: 'Enter distance',
+                  ),
+                  
+                  CalculatorInput(
+                    id: 'mileage',
+                    label: 'Vehicle Mileage',
+                    value: inputs.mileage,
+                    onChanged: (value) => handleInputChange('mileage', value),
+                    unit: 'km per ${getFuelUnit(selectedFuelType)}',
+                    placeholder: 'Enter mileage',
+                  ),
+                  
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: handleReset,
+                          icon: const Icon(Icons.refresh),
+                          label: const Text('Reset'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: isDarkMode 
+                                ? Colors.grey[800] 
+                                : Colors.grey[200],
+                            foregroundColor: isDarkMode 
+                                ? Colors.white
+                                : Colors.grey[800],
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: saveCalculation,
+                          icon: const Icon(Icons.save),
+                          label: const Text('Save'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Theme.of(context).primaryColor,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  
+                  // Success message
+                  if (_showSuccessMessage)
+                    Container(
+                      margin: const EdgeInsets.only(top: 10),
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.green.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: Colors.green.withOpacity(0.5),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.check_circle,
+                            color: Colors.green,
+                            size: 16,
+                          ),
+                          const SizedBox(width: 8),
+                          const Text(
+                            'Calculation saved successfully',
+                            style: TextStyle(
+                              color: Colors.green,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            
+            const SizedBox(height: 16),
+            
+            // Results Card
+            CalculatorResult(
+              result: result,
+              fuelUnit: getFuelUnit(selectedFuelType),
+            ),
+          ],
           
-          // Results Card
-          CalculatorResult(
-            result: result,
-            fuelUnit: getFuelUnit(selectedFuelType),
-          ),
+          // Purchase Calculator Tab
+          if (_selectedTabIndex == 1)
+            PurchaseCalculator(
+              selectedFuelType: selectedFuelType,
+              fuelPrice: inputs.fuelPrice,
+            ),
         ],
       ),
     );
