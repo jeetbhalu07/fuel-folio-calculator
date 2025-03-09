@@ -33,7 +33,7 @@ const CalculatorResult: React.FC<CalculatorResultProps> = ({
         <div className="flex justify-between items-center">
           <span className="text-sm text-muted-foreground">Total Cost:</span>
           <span className="text-xl font-bold text-primary">
-            ${totalCost.toFixed(2)}
+            ₹{totalCost.toFixed(2)}
           </span>
         </div>
       </div>

@@ -6,7 +6,7 @@ import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
 import { FuelType, getCompanyFuelPrice, getFuelUnit } from '@/lib/calculate';
 import { Upload, FileCheck, AlertCircle, Save, History } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import PurchaseHistory from '@/components/PurchaseHistory';
 
 interface PurchaseCalculatorProps {
@@ -129,14 +129,16 @@ const PurchaseCalculator: React.FC<PurchaseCalculatorProps> = ({
     
     // Simulate extracting data from the bill
     setTimeout(() => {
-      // Simulate extracting an amount from the bill
-      // In a real app, OCR would extract the actual amount from the bill image
+      // Extract fuel price from the bill and use it for calculation
+      // In a real app, OCR would extract the actual amount and price from the bill image
       const extractedAmount = Math.floor(Math.random() * 1000) + 100; // Random amount between 100-1100
       setAmountPaid(extractedAmount);
       
       toast.success(`Extracted amount: ₹${extractedAmount.toFixed(2)}`);
       
-      // Calculate fuel quantity based on the extracted amount
+      // Calculate fuel quantity based on the extracted amount and bill's fuel price
+      // Here we'll use the current fuel price, but in a real implementation
+      // you would extract both amount and fuel price from the bill
       const extractedQuantity = Number((extractedAmount / fuelPrice).toFixed(2));
       setBillQuantity(extractedQuantity);
       
@@ -149,8 +151,23 @@ const PurchaseCalculator: React.FC<PurchaseCalculatorProps> = ({
         // Automatically save to history
         setTimeout(() => {
           saveToHistory(isValid);
+        }, 500);
+        
+        // Show verification result popup
+        toast(isValid ? "Bill Verified Successfully" : "Bill Verification Failed", {
+          description: isValid 
+            ? "The fuel quantity matches the amount paid." 
+            : "The fuel quantity doesn't match the amount paid.",
+          icon: isValid ? <FileCheck className="h-4 w-4 text-green-500" /> : <AlertCircle className="h-4 w-4 text-red-500" />,
+          duration: 5000,
+        });
+        
+        // Automatically open history after saving
+        setTimeout(() => {
+          setIsHistoryOpen(true);
         }, 1000);
-      }, 1500);
+        
+      }, 1000);
     }, 1500);
   };
 
@@ -262,6 +279,7 @@ const PurchaseCalculator: React.FC<PurchaseCalculatorProps> = ({
         <DialogContent className="sm:max-w-[500px] max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Purchase History</DialogTitle>
+            <DialogDescription>Your recent fuel purchase records</DialogDescription>
           </DialogHeader>
           <PurchaseHistory 
             history={history} 
