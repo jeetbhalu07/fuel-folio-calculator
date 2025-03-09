@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { CalculatorInput } from '@/components/CalculatorInput';
+import CalculatorInput from '@/components/CalculatorInput';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
