@@ -11,21 +11,32 @@ import {
   getDefaultValues,
   getDefaultCompany,
   getCompanyFuelPrice,
+  getFuelCompanies,
   CalculationInput,
   FuelType,
   FuelCompany
 } from '@/lib/calculate';
+import { updateCompaniesWithApiPrices, getLastPriceUpdateTime } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { RotateCw, Calculator as CalculatorIcon, IndianRupee } from 'lucide-react';
+import { RotateCw, Calculator as CalculatorIcon, IndianRupee, RefreshCw } from 'lucide-react';
+import { toast } from 'sonner';
 
 const Calculator: React.FC = () => {
   const [fuelType, setFuelType] = useState<FuelType>('petrol');
+  const [companies, setCompanies] = useState<FuelCompany[]>(getFuelCompanies());
   const [selectedCompany, setSelectedCompany] = useState<FuelCompany>(getDefaultCompany('petrol'));
   const [inputs, setInputs] = useState<CalculationInput>(getDefaultValues('petrol'));
   const [result, setResult] = useState(calculateFuelCost(inputs));
   const [fuelUnit, setFuelUnit] = useState(getFuelUnit('petrol'));
   const [activeTab, setActiveTab] = useState("trip");
+  const [isLoadingPrices, setIsLoadingPrices] = useState(false);
+  const [lastUpdateTime, setLastUpdateTime] = useState('');
+  
+  // Load prices from API when component mounts
+  useEffect(() => {
+    refreshPrices();
+  }, []);
   
   // Update everything when fuel type changes
   useEffect(() => {
@@ -39,12 +50,44 @@ const Calculator: React.FC = () => {
     setInputs(defaultValues);
     setFuelUnit(getFuelUnit(fuelType));
     setResult(calculateFuelCost(defaultValues));
-  }, [fuelType]);
+  }, [fuelType, companies]);
 
   // Recalculate result when inputs change
   useEffect(() => {
     setResult(calculateFuelCost(inputs));
   }, [inputs]);
+
+  const refreshPrices = async () => {
+    setIsLoadingPrices(true);
+    try {
+      const updatedCompanies = await updateCompaniesWithApiPrices(getFuelCompanies());
+      setCompanies(updatedCompanies);
+      setLastUpdateTime(getLastPriceUpdateTime());
+      
+      // Update selected company's fuel price
+      if (selectedCompany) {
+        const refreshedCompany = updatedCompanies.find(c => c.type === selectedCompany.type);
+        if (refreshedCompany) {
+          setSelectedCompany(refreshedCompany);
+          
+          // Update fuel price in inputs
+          setInputs(prev => ({
+            ...prev,
+            fuelPrice: getCompanyFuelPrice(refreshedCompany, fuelType)
+          }));
+        }
+      }
+      
+      toast.success("Fuel prices updated successfully", {
+        description: `Latest prices as of ${getLastPriceUpdateTime()}`,
+      });
+    } catch (error) {
+      console.error("Failed to update prices:", error);
+      toast.error("Failed to update fuel prices");
+    } finally {
+      setIsLoadingPrices(false);
+    }
+  };
 
   const handleFuelTypeChange = (type: FuelType) => {
     setFuelType(type);
@@ -76,15 +119,39 @@ const Calculator: React.FC = () => {
 
   return (
     <div className="w-full max-w-md mx-auto">
-      <FuelTypeSelector 
-        selectedFuelType={fuelType} 
-        onChange={handleFuelTypeChange} 
-      />
+      <div className="flex justify-between items-center mb-2">
+        <FuelTypeSelector 
+          selectedFuelType={fuelType} 
+          onChange={handleFuelTypeChange} 
+        />
+        
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={refreshPrices}
+          disabled={isLoadingPrices}
+          className="h-8 animate-slide-up opacity-0 animate-delay-300"
+        >
+          {isLoadingPrices ? (
+            <RefreshCw className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+          ) : (
+            <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+          )}
+          Refresh Prices
+        </Button>
+      </div>
+      
+      {lastUpdateTime && (
+        <p className="text-xs text-muted-foreground text-right mb-2 animate-slide-up opacity-0 animate-delay-400">
+          Prices updated: {lastUpdateTime}
+        </p>
+      )}
       
       <CompanySelector
         selectedFuelType={fuelType}
         selectedCompany={selectedCompany}
         onCompanyChange={handleCompanyChange}
+        companies={companies}
       />
       
       <Tabs defaultValue="trip" value={activeTab} onValueChange={setActiveTab} className="w-full mt-4">

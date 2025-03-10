@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
 import { FuelType, getCompanyFuelPrice, getFuelUnit } from '@/lib/calculate';
-import { Upload, FileCheck, AlertCircle, Save, History } from 'lucide-react';
+import { Upload, FileCheck, AlertCircle, Save, History, RefreshCw } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import PurchaseHistory from '@/components/PurchaseHistory';
 
@@ -55,6 +55,13 @@ export const getPurchaseHistory = (): PurchaseHistoryItem[] => {
   }
 };
 
+// Bill data extraction interface
+interface ExtractedBillData {
+  amountPaid: number;
+  fuelQuantity: number;
+  fuelPrice: number;
+}
+
 const PurchaseCalculator: React.FC<PurchaseCalculatorProps> = ({
   selectedFuelType,
   fuelPrice,
@@ -62,9 +69,11 @@ const PurchaseCalculator: React.FC<PurchaseCalculatorProps> = ({
   const [amountPaid, setAmountPaid] = useState(200);
   const [fuelQuantity, setFuelQuantity] = useState(0);
   const [billQuantity, setBillQuantity] = useState(0);
+  const [billFuelPrice, setBillFuelPrice] = useState(0);
   const [verificationResult, setVerificationResult] = useState<boolean | null>(null);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [history, setHistory] = useState<PurchaseHistoryItem[]>([]);
+  const [processingBill, setProcessingBill] = useState(false);
   const fuelUnit = getFuelUnit(selectedFuelType);
 
   useEffect(() => {
@@ -78,13 +87,16 @@ const PurchaseCalculator: React.FC<PurchaseCalculatorProps> = ({
     setHistory(getPurchaseHistory());
   }, []);
 
-  const verifyBill = (quantity: number) => {
+  const verifyBill = (quantity: number, extractedFuelPrice?: number) => {
     if (quantity <= 0) {
       toast.error("Invalid fuel quantity detected");
       return false;
     }
 
-    const expectedAmount = quantity * fuelPrice;
+    // If we have extracted fuel price from the bill, use it, otherwise use the current fuel price
+    const priceToUse = extractedFuelPrice && extractedFuelPrice > 0 ? extractedFuelPrice : fuelPrice;
+    
+    const expectedAmount = quantity * priceToUse;
     const expectedRounded = Number(expectedAmount.toFixed(2));
     const amountRounded = Number(amountPaid.toFixed(2));
     
@@ -114,39 +126,61 @@ const PurchaseCalculator: React.FC<PurchaseCalculatorProps> = ({
     setHistory(prev => [newHistoryItem, ...prev]);
     
     toast.success("Purchase calculation saved to history!", {
-      description: `Amount: ₹${amountPaid.toFixed(2)}, Quantity: ${fuelQuantity} ${fuelUnit}`,
+      description: `Amount: ₹${amountPaid.toFixed(2)}, Quantity: ${billQuantity > 0 ? billQuantity : fuelQuantity} ${fuelUnit}`,
       duration: 4000,
     });
   };
 
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const extractBillData = (file: File): Promise<ExtractedBillData> => {
+    return new Promise((resolve) => {
+      // In a real implementation, this would call an OCR service to extract data from the bill
+      // For demonstration, we'll simulate the extraction with random values
+      setTimeout(() => {
+        // Extract the amount paid from the bill
+        const extractedAmount = Math.floor(Math.random() * 1000) + 100; // Random amount between 100-1100
+        
+        // Extract the fuel price from the bill (simulate extraction from receipt)
+        // In a real implementation, this would come from the actual OCR of the bill
+        const extractedFuelPrice = fuelPrice * (0.9 + Math.random() * 0.2); // Simulate a price within ±10% of current price
+        
+        // Calculate quantity based on extracted values
+        const extractedQuantity = Number((extractedAmount / extractedFuelPrice).toFixed(2));
+        
+        resolve({
+          amountPaid: extractedAmount,
+          fuelQuantity: extractedQuantity,
+          fuelPrice: extractedFuelPrice
+        });
+      }, 1500);
+    });
+  };
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
+    
+    setProcessingBill(true);
     
     toast.info("Processing bill...", {
       duration: 2000,
     });
     
-    // Simulate extracting data from the bill
-    setTimeout(() => {
-      // Extract fuel price from the bill and use it for calculation
-      // In a real app, OCR would extract the actual amount and price from the bill image
-      const extractedAmount = Math.floor(Math.random() * 1000) + 100; // Random amount between 100-1100
-      setAmountPaid(extractedAmount);
+    try {
+      // Extract data from bill
+      const extractedData = await extractBillData(file);
       
-      toast.success(`Extracted amount: ₹${extractedAmount.toFixed(2)}`);
+      // Update state with extracted values
+      setAmountPaid(extractedData.amountPaid);
+      setBillQuantity(extractedData.fuelQuantity);
+      setBillFuelPrice(extractedData.fuelPrice);
       
-      // Calculate fuel quantity based on the extracted amount and bill's fuel price
-      // Here we'll use the current fuel price, but in a real implementation
-      // you would extract both amount and fuel price from the bill
-      const extractedQuantity = Number((extractedAmount / fuelPrice).toFixed(2));
-      setBillQuantity(extractedQuantity);
+      toast.success(`Extracted amount: ₹${extractedData.amountPaid.toFixed(2)}`);
+      toast.success(`Extracted fuel price: ₹${extractedData.fuelPrice.toFixed(2)} per ${fuelUnit}`);
+      toast.success(`Calculated fuel quantity: ${extractedData.fuelQuantity} ${fuelUnit}`);
       
-      toast.success(`Calculated fuel quantity: ${extractedQuantity} ${fuelUnit}`);
-      
-      // Automatically verify the bill after a short delay
+      // Automatically verify using extracted fuel price
       setTimeout(() => {
-        const isValid = verifyBill(extractedQuantity);
+        const isValid = verifyBill(extractedData.fuelQuantity, extractedData.fuelPrice);
         
         // Automatically save to history
         setTimeout(() => {
@@ -156,8 +190,8 @@ const PurchaseCalculator: React.FC<PurchaseCalculatorProps> = ({
         // Show verification result popup
         toast(isValid ? "Bill Verified Successfully" : "Bill Verification Failed", {
           description: isValid 
-            ? "The fuel quantity matches the amount paid." 
-            : "The fuel quantity doesn't match the amount paid.",
+            ? "The fuel quantity matches the amount paid based on the extracted fuel price." 
+            : "The fuel quantity doesn't match the amount paid based on the extracted fuel price.",
           icon: isValid ? <FileCheck className="h-4 w-4 text-green-500" /> : <AlertCircle className="h-4 w-4 text-red-500" />,
           duration: 5000,
         });
@@ -166,9 +200,13 @@ const PurchaseCalculator: React.FC<PurchaseCalculatorProps> = ({
         setTimeout(() => {
           setIsHistoryOpen(true);
         }, 1000);
-        
       }, 1000);
-    }, 1500);
+    } catch (error) {
+      toast.error("Failed to process bill. Please try again.");
+      console.error("Bill processing error:", error);
+    } finally {
+      setProcessingBill(false);
+    }
   };
 
   return (
@@ -204,6 +242,15 @@ const PurchaseCalculator: React.FC<PurchaseCalculatorProps> = ({
         </span>
       </div>
       
+      {billFuelPrice > 0 && (
+        <div className="flex justify-between items-center mb-4 p-3 bg-primary/10 rounded-xl">
+          <span className="text-sm text-muted-foreground">Bill Fuel Price:</span>
+          <span className="text-lg font-semibold text-primary">
+            ₹{billFuelPrice.toFixed(2)} per {fuelUnit}
+          </span>
+        </div>
+      )}
+      
       <Separator className="my-4 bg-border/50" />
       
       <h4 className="text-md font-medium mb-2">Verify Your Bill</h4>
@@ -213,6 +260,7 @@ const PurchaseCalculator: React.FC<PurchaseCalculatorProps> = ({
           variant="outline"
           className="flex-1 h-12 relative"
           onClick={() => document.getElementById('bill-upload')?.click()}
+          disabled={processingBill}
         >
           <input
             id="bill-upload"
@@ -220,9 +268,14 @@ const PurchaseCalculator: React.FC<PurchaseCalculatorProps> = ({
             accept="image/*"
             className="hidden"
             onChange={handleFileUpload}
+            disabled={processingBill}
           />
-          <Upload className="mr-2 h-4 w-4" />
-          Upload Bill
+          {processingBill ? (
+            <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            <Upload className="mr-2 h-4 w-4" />
+          )}
+          {processingBill ? "Processing..." : "Upload Bill"}
         </Button>
         
         <CalculatorInput
@@ -240,6 +293,7 @@ const PurchaseCalculator: React.FC<PurchaseCalculatorProps> = ({
         <Button 
           onClick={() => verifyBill(billQuantity)}
           className="flex-1 h-12"
+          disabled={processingBill}
         >
           <FileCheck className="mr-2 h-4 w-4" />
           Verify Manually
@@ -249,7 +303,7 @@ const PurchaseCalculator: React.FC<PurchaseCalculatorProps> = ({
           onClick={() => saveToHistory(verificationResult === true)}
           variant="secondary"
           className="flex-1 h-12"
-          disabled={verificationResult === null}
+          disabled={verificationResult === null || processingBill}
         >
           <Save className="mr-2 h-4 w-4" />
           Save to History

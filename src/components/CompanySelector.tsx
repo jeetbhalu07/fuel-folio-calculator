@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { 
   getCompaniesForFuelType, 
@@ -13,19 +12,30 @@ interface CompanySelectorProps {
   selectedFuelType: FuelType;
   selectedCompany: FuelCompany;
   onCompanyChange: (company: FuelCompany) => void;
+  companies?: FuelCompany[];
 }
 
 const CompanySelector: React.FC<CompanySelectorProps> = ({
   selectedFuelType,
   selectedCompany,
-  onCompanyChange
+  onCompanyChange,
+  companies: externalCompanies
 }) => {
   const [companies, setCompanies] = useState<FuelCompany[]>([]);
   
   useEffect(() => {
-    const availableCompanies = getCompaniesForFuelType(selectedFuelType);
-    setCompanies(availableCompanies);
-  }, [selectedFuelType]);
+    if (externalCompanies) {
+      const filteredCompanies = externalCompanies.filter(company => {
+        return selectedFuelType === 'cng' 
+          ? company.supportsCNG 
+          : company.fuelPrices[selectedFuelType] !== undefined;
+      });
+      setCompanies(filteredCompanies);
+    } else {
+      const availableCompanies = getCompaniesForFuelType(selectedFuelType);
+      setCompanies(availableCompanies);
+    }
+  }, [selectedFuelType, externalCompanies]);
 
   const getIcon = (iconType: string) => {
     switch (iconType) {
