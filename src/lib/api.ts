@@ -1,4 +1,3 @@
-
 // Fuel price API integration
 
 import { FuelCompany, FuelType } from './calculate';
@@ -36,22 +35,19 @@ const CACHE_EXPIRY = 10 * 60 * 1000;
 export const fetchFuelPrices = async (): Promise<FuelPriceResponse | null> => {
   const now = Date.now();
   
-  // Return cached data if it's fresh
+  // Return cached data if it's fresh (less than 10 minutes old)
   if (priceCache.data && now - priceCache.timestamp < CACHE_EXPIRY) {
     return priceCache.data;
   }
   
   try {
-    // In a real implementation, you would fetch from an actual API
-    // For now, we'll use a mock that simulates API behavior
-    
     // Simulate API call delay
     await new Promise(resolve => setTimeout(resolve, 800));
     
-    // Mock response with random price fluctuations
+    // In real implementation, this would fetch from an actual API endpoint
     const mockData = generateMockPriceData();
     
-    // Update cache
+    // Update cache with new data
     priceCache = {
       data: mockData,
       timestamp: now
@@ -154,4 +150,22 @@ export const getLastPriceUpdateTime = (): string => {
   } catch (e) {
     return 'Unknown';
   }
+};
+
+/**
+ * Add automatic price polling function
+ */
+export const startPricePolling = (callback: (prices: FuelPriceResponse) => void) => {
+  // Initial fetch
+  fetchFuelPrices().then(prices => {
+    if (prices) callback(prices);
+  });
+
+  // Poll every 10 minutes
+  const intervalId = setInterval(async () => {
+    const prices = await fetchFuelPrices();
+    if (prices) callback(prices);
+  }, CACHE_EXPIRY);
+
+  return () => clearInterval(intervalId);
 };

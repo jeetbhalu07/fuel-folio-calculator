@@ -46,18 +46,6 @@ class MyApp extends StatelessWidget {
           seedColor: const Color(0xFF1E88E5),
           brightness: Brightness.light,
         ),
-        appBarTheme: AppBarTheme(
-          elevation: 0,
-          backgroundColor: Colors.grey[50],
-          iconTheme: const IconThemeData(color: Color(0xFF1E88E5)),
-          titleTextStyle: const TextStyle(
-            color: Color(0xFF424242), 
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-            fontFamily: 'SF Pro Display',
-          ),
-          systemOverlayStyle: SystemUiOverlayStyle.dark,
-        ),
       ),
       darkTheme: ThemeData(
         primaryColor: const Color(0xFF1E88E5),
@@ -67,18 +55,6 @@ class MyApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(
           seedColor: const Color(0xFF1E88E5),
           brightness: Brightness.dark,
-        ),
-        appBarTheme: const AppBarTheme(
-          elevation: 0,
-          backgroundColor: Color(0xFF121212),
-          iconTheme: IconThemeData(color: Color(0xFF1E88E5)),
-          titleTextStyle: TextStyle(
-            color: Colors.white, 
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-            fontFamily: 'SF Pro Display',
-          ),
-          systemOverlayStyle: SystemUiOverlayStyle.light,
         ),
       ),
       themeMode: themeProvider.themeMode,
