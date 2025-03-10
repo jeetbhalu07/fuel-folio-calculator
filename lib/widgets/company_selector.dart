@@ -8,6 +8,7 @@ class CompanySelector extends StatelessWidget {
   final FuelCompany selectedCompany;
   final Function(FuelCompany) onChanged;
   final List<FuelCompany>? companies;
+  final bool isRefreshing;
 
   const CompanySelector({
     Key? key,
@@ -15,6 +16,7 @@ class CompanySelector extends StatelessWidget {
     required this.selectedCompany,
     required this.onChanged,
     this.companies,
+    this.isRefreshing = false,
   }) : super(key: key);
 
   @override
@@ -49,61 +51,92 @@ class CompanySelector extends StatelessWidget {
       child: DropdownButtonHideUnderline(
         child: ButtonTheme(
           alignedDropdown: true,
-          child: DropdownButton<FuelCompany>(
-            value: selectedCompany,
-            isExpanded: true,
-            borderRadius: BorderRadius.circular(12),
-            icon: Icon(
-              Icons.arrow_drop_down,
-              color: Theme.of(context).primaryColor,
-            ),
-            dropdownColor: isDarkMode ? Colors.grey[850] : Colors.white,
-            style: TextStyle(
-              color: isDarkMode ? Colors.white : Colors.black,
-              fontSize: 16,
-            ),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            onChanged: (FuelCompany? newValue) {
-              if (newValue != null) {
-                onChanged(newValue);
-              }
-            },
-            items: availableCompanies.map<DropdownMenuItem<FuelCompany>>((FuelCompany company) {
-              return DropdownMenuItem<FuelCompany>(
-                value: company,
-                child: Row(
-                  children: [
-                    Icon(
-                      company.icon,
-                      size: 20,
-                      color: Theme.of(context).primaryColor,
+          child: Stack(
+            children: [
+              DropdownButton<FuelCompany>(
+                value: selectedCompany,
+                isExpanded: true,
+                borderRadius: BorderRadius.circular(12),
+                icon: Icon(
+                  Icons.arrow_drop_down,
+                  color: Theme.of(context).primaryColor,
+                ),
+                dropdownColor: isDarkMode ? Colors.grey[850] : Colors.white,
+                style: TextStyle(
+                  color: isDarkMode ? Colors.white : Colors.black,
+                  fontSize: 16,
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                onChanged: isRefreshing 
+                    ? null 
+                    : (FuelCompany? newValue) {
+                        if (newValue != null) {
+                          onChanged(newValue);
+                        }
+                      },
+                items: availableCompanies.map<DropdownMenuItem<FuelCompany>>((FuelCompany company) {
+                  return DropdownMenuItem<FuelCompany>(
+                    value: company,
+                    child: Row(
+                      children: [
+                        Icon(
+                          company.icon,
+                          size: 20,
+                          color: Theme.of(context).primaryColor,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                company.shortName,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              Text(
+                                '${fuelTypeToString(selectedFuelType)} Price: ₹${getCompanyFuelPrice(company, selectedFuelType).toStringAsFixed(2)}',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: isDarkMode ? Colors.grey[400] : Colors.grey[600],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            company.shortName,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w600,
-                            ),
+                  );
+                }).toList(),
+              ),
+              
+              // Loading indicator overlay
+              if (isRefreshing)
+                Positioned.fill(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: isDarkMode 
+                          ? Colors.black.withOpacity(0.3) 
+                          : Colors.white.withOpacity(0.6),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Center(
+                      child: SizedBox(
+                        width: 20, 
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            Theme.of(context).primaryColor,
                           ),
-                          Text(
-                            '${fuelTypeToString(selectedFuelType)} Price: ₹${getCompanyFuelPrice(company, selectedFuelType).toStringAsFixed(2)}',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: isDarkMode ? Colors.grey[400] : Colors.grey[600],
-                            ),
-                          ),
-                        ],
+                        ),
                       ),
                     ),
-                  ],
+                  ),
                 ),
-              );
-            }).toList(),
+            ],
           ),
         ),
       ),

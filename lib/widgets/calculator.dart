@@ -1,6 +1,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import '../models/calculation.dart';
 import '../models/calculation_history_provider.dart';
 import '../models/fuel_company.dart';
@@ -30,7 +31,9 @@ class _CalculatorState extends State<Calculator> with SingleTickerProviderStateM
   List<FuelCompany> _companies = [];
   bool _isLoadingPrices = false;
   String _lastUpdateTime = '';
+  bool _isOffline = false;
   final ApiService _apiService = ApiService();
+  late StreamSubscription<ConnectivityResult> _connectivitySubscription;
 
   @override
   void initState() {
@@ -56,6 +59,28 @@ class _CalculatorState extends State<Calculator> with SingleTickerProviderStateM
     
     _animationController.forward();
     
+    // Check connectivity status initially
+    Connectivity().checkConnectivity().then((result) {
+      setState(() {
+        _isOffline = result == ConnectivityResult.none;
+      });
+    });
+    
+    // Monitor connectivity changes
+    _connectivitySubscription = Connectivity().onConnectivityChanged.listen((result) {
+      final wasOffline = _isOffline;
+      final isNowOffline = result == ConnectivityResult.none;
+      
+      setState(() {
+        _isOffline = isNowOffline;
+      });
+      
+      // If we're coming back online, refresh prices
+      if (wasOffline && !isNowOffline) {
+        _refreshPrices();
+      }
+    });
+    
     // Fetch prices when app loads
     _refreshPrices();
   }
@@ -63,6 +88,7 @@ class _CalculatorState extends State<Calculator> with SingleTickerProviderStateM
   @override
   void dispose() {
     _animationController.dispose();
+    _connectivitySubscription.cancel();
     super.dispose();
   }
 
@@ -135,6 +161,17 @@ class _CalculatorState extends State<Calculator> with SingleTickerProviderStateM
   }
   
   Future<void> _refreshPrices() async {
+    if (_isOffline) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Cannot update prices while offline. Using cached prices.'),
+          backgroundColor: Colors.orange,
+          duration: Duration(seconds: 3),
+        ),
+      );
+      return;
+    }
+    
     setState(() {
       _isLoadingPrices = true;
     });
@@ -143,42 +180,48 @@ class _CalculatorState extends State<Calculator> with SingleTickerProviderStateM
       final updatedCompanies = await _apiService.updateCompaniesWithApiPrices(_companies);
       final lastUpdateTime = await _apiService.getLastPriceUpdateTime();
       
-      setState(() {
-        _companies = updatedCompanies;
-        _lastUpdateTime = lastUpdateTime;
-        
-        // Update selected company with new prices
-        for (var company in updatedCompanies) {
-          if (company.type == selectedCompany.type) {
-            selectedCompany = company;
-            // Update fuel price
-            inputs.fuelPrice = getCompanyFuelPrice(company, selectedFuelType);
-            result = calculateFuelCost(inputs);
-            break;
+      if (mounted) {
+        setState(() {
+          _companies = updatedCompanies;
+          _lastUpdateTime = lastUpdateTime;
+          
+          // Update selected company with new prices
+          for (var company in updatedCompanies) {
+            if (company.type == selectedCompany.type) {
+              selectedCompany = company;
+              // Update fuel price
+              inputs.fuelPrice = getCompanyFuelPrice(company, selectedFuelType);
+              result = calculateFuelCost(inputs);
+              break;
+            }
           }
-        }
-      });
-      
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Fuel prices updated successfully. Last update: $lastUpdateTime'),
-          backgroundColor: Colors.green,
-          duration: const Duration(seconds: 3),
-        ),
-      );
+        });
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Fuel prices updated successfully. Last update: $lastUpdateTime'),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
     } catch (e) {
       print('Error refreshing prices: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Failed to update fuel prices'),
-          backgroundColor: Colors.red,
-          duration: Duration(seconds: 3),
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to update fuel prices: ${e.toString().substring(0, 50)}...'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
     } finally {
-      setState(() {
-        _isLoadingPrices = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoadingPrices = false;
+        });
+      }
     }
   }
 
@@ -194,6 +237,36 @@ class _CalculatorState extends State<Calculator> with SingleTickerProviderStateM
             selectedFuelType: selectedFuelType,
             onChanged: handleFuelTypeChange,
           ),
+          
+          // Network status indicator
+          if (_isOffline)
+            Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.orange.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.orange.withOpacity(0.5)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.wifi_off,
+                    size: 14,
+                    color: Colors.orange,
+                  ),
+                  const SizedBox(width: 6),
+                  const Text(
+                    'Offline Mode - Using cached prices',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.orange,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           
           // Last update time
           if (_lastUpdateTime.isNotEmpty)
@@ -215,7 +288,7 @@ class _CalculatorState extends State<Calculator> with SingleTickerProviderStateM
           Align(
             alignment: Alignment.centerRight,
             child: ElevatedButton.icon(
-              onPressed: _isLoadingPrices ? null : _refreshPrices,
+              onPressed: _isLoadingPrices || _isOffline ? null : _refreshPrices,
               icon: _isLoadingPrices 
                   ? const SizedBox(
                       width: 14,
@@ -226,7 +299,11 @@ class _CalculatorState extends State<Calculator> with SingleTickerProviderStateM
                       ),
                     )
                   : const Icon(Icons.refresh, size: 14),
-              label: Text(_isLoadingPrices ? 'Updating...' : 'Refresh Prices'),
+              label: Text(_isLoadingPrices 
+                  ? 'Updating...' 
+                  : _isOffline 
+                      ? 'Offline' 
+                      : 'Refresh Prices'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Theme.of(context).primaryColor,
                 foregroundColor: Colors.white,
@@ -247,6 +324,7 @@ class _CalculatorState extends State<Calculator> with SingleTickerProviderStateM
             selectedCompany: selectedCompany,
             onChanged: handleCompanyChange,
             companies: _companies,
+            isRefreshing: _isLoadingPrices,
           ),
           
           const SizedBox(height: 16),
@@ -369,7 +447,7 @@ class _CalculatorState extends State<Calculator> with SingleTickerProviderStateM
                     label: 'Fuel Price',
                     value: inputs.fuelPrice,
                     onChanged: (value) => handleInputChange('fuelPrice', value),
-                    unit: '\$ per ${getFuelUnit(selectedFuelType)}',
+                    unit: '₹ per ${getFuelUnit(selectedFuelType)}',
                     placeholder: 'Enter fuel price',
                   ),
                   
