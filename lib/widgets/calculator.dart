@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../models/calculation.dart';
 import '../models/calculation_history_provider.dart';
 import '../models/fuel_company.dart';
+import '../services/api_service.dart';
 import 'fuel_type_selector.dart';
 import 'company_selector.dart';
 import 'calculator_input.dart';
@@ -26,10 +27,15 @@ class _CalculatorState extends State<Calculator> with SingleTickerProviderStateM
   late Animation<double> _fadeAnimation;
   bool _showSuccessMessage = false;
   int _selectedTabIndex = 0;
+  List<FuelCompany> _companies = [];
+  bool _isLoadingPrices = false;
+  String _lastUpdateTime = '';
+  final ApiService _apiService = ApiService();
 
   @override
   void initState() {
     super.initState();
+    _companies = getFuelCompanies();
     selectedCompany = getDefaultCompany(selectedFuelType);
     inputs = getDefaultValues(selectedFuelType);
     // Update fuel price based on selected company
@@ -49,6 +55,9 @@ class _CalculatorState extends State<Calculator> with SingleTickerProviderStateM
     );
     
     _animationController.forward();
+    
+    // Fetch prices when app loads
+    _refreshPrices();
   }
   
   @override
@@ -124,6 +133,54 @@ class _CalculatorState extends State<Calculator> with SingleTickerProviderStateM
       }
     });
   }
+  
+  Future<void> _refreshPrices() async {
+    setState(() {
+      _isLoadingPrices = true;
+    });
+    
+    try {
+      final updatedCompanies = await _apiService.updateCompaniesWithApiPrices(_companies);
+      final lastUpdateTime = await _apiService.getLastPriceUpdateTime();
+      
+      setState(() {
+        _companies = updatedCompanies;
+        _lastUpdateTime = lastUpdateTime;
+        
+        // Update selected company with new prices
+        for (var company in updatedCompanies) {
+          if (company.type == selectedCompany.type) {
+            selectedCompany = company;
+            // Update fuel price
+            inputs.fuelPrice = getCompanyFuelPrice(company, selectedFuelType);
+            result = calculateFuelCost(inputs);
+            break;
+          }
+        }
+      });
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Fuel prices updated successfully. Last update: $lastUpdateTime'),
+          backgroundColor: Colors.green,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    } catch (e) {
+      print('Error refreshing prices: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Failed to update fuel prices'),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 3),
+        ),
+      );
+    } finally {
+      setState(() {
+        _isLoadingPrices = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -138,11 +195,58 @@ class _CalculatorState extends State<Calculator> with SingleTickerProviderStateM
             onChanged: handleFuelTypeChange,
           ),
           
+          // Last update time
+          if (_lastUpdateTime.isNotEmpty)
+            Align(
+              alignment: Alignment.centerRight,
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Text(
+                  'Last update: $_lastUpdateTime',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: isDarkMode ? Colors.grey[400] : Colors.grey[600],
+                  ),
+                ),
+              ),
+            ),
+          
+          // Refresh prices button
+          Align(
+            alignment: Alignment.centerRight,
+            child: ElevatedButton.icon(
+              onPressed: _isLoadingPrices ? null : _refreshPrices,
+              icon: _isLoadingPrices 
+                  ? const SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Icon(Icons.refresh, size: 14),
+              label: Text(_isLoadingPrices ? 'Updating...' : 'Refresh Prices'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Theme.of(context).primaryColor,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                textStyle: const TextStyle(fontSize: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+            ),
+          ),
+          
+          const SizedBox(height: 8),
+          
           // Company Selector
           CompanySelector(
             selectedFuelType: selectedFuelType,
             selectedCompany: selectedCompany,
             onChanged: handleCompanyChange,
+            companies: _companies,
           ),
           
           const SizedBox(height: 16),

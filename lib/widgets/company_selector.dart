@@ -7,18 +7,22 @@ class CompanySelector extends StatelessWidget {
   final FuelType selectedFuelType;
   final FuelCompany selectedCompany;
   final Function(FuelCompany) onChanged;
+  final List<FuelCompany>? companies;
 
   const CompanySelector({
     Key? key,
     required this.selectedFuelType,
     required this.selectedCompany,
     required this.onChanged,
+    this.companies,
   }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
-    final companies = getCompaniesForFuelType(selectedFuelType);
+    final availableCompanies = companies != null 
+        ? getCompaniesForFuelTypeFromList(selectedFuelType, companies!) 
+        : getCompaniesForFuelType(selectedFuelType);
 
     return Container(
       margin: const EdgeInsets.only(top: 16, bottom: 8),
@@ -64,7 +68,7 @@ class CompanySelector extends StatelessWidget {
                 onChanged(newValue);
               }
             },
-            items: companies.map<DropdownMenuItem<FuelCompany>>((FuelCompany company) {
+            items: availableCompanies.map<DropdownMenuItem<FuelCompany>>((FuelCompany company) {
               return DropdownMenuItem<FuelCompany>(
                 value: company,
                 child: Row(
@@ -114,6 +118,17 @@ class CompanySelector extends StatelessWidget {
         return 'Diesel';
       case FuelType.cng:
         return 'CNG';
+    }
+  }
+  
+  List<FuelCompany> getCompaniesForFuelTypeFromList(FuelType fuelType, List<FuelCompany> allCompanies) {
+    switch (fuelType) {
+      case FuelType.petrol:
+      case FuelType.diesel:
+        return allCompanies.where((company) => 
+            company.fuelPrices.containsKey(fuelType.toString().split('.').last)).toList();
+      case FuelType.cng:
+        return allCompanies.where((company) => company.supportsCNG).toList();
     }
   }
 }
