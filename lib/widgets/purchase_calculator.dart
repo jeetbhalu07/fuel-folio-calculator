@@ -1,7 +1,6 @@
 
 import 'package:flutter/material.dart';
 import '../models/calculation.dart';
-import 'calculator_input.dart';
 
 class PurchaseCalculator extends StatefulWidget {
   final FuelType selectedFuelType;
@@ -18,36 +17,30 @@ class PurchaseCalculator extends StatefulWidget {
 }
 
 class _PurchaseCalculatorState extends State<PurchaseCalculator> {
-  double amountPaid = 200.0;
-  double fuelQuantity = 0.0;
-  
+  double _amount = 500;
+  double _quantity = 0;
+
   @override
   void initState() {
     super.initState();
-    _calculateFuelQuantity();
+    _calculateQuantity();
   }
-  
+
   @override
   void didUpdateWidget(PurchaseCalculator oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.fuelPrice != widget.fuelPrice) {
-      _calculateFuelQuantity();
+    if (oldWidget.fuelPrice != widget.fuelPrice || 
+        oldWidget.selectedFuelType != widget.selectedFuelType) {
+      _calculateQuantity();
     }
   }
-  
-  void _calculateFuelQuantity() {
+
+  void _calculateQuantity() {
     if (widget.fuelPrice > 0) {
       setState(() {
-        fuelQuantity = double.parse((amountPaid / widget.fuelPrice).toStringAsFixed(2));
+        _quantity = _amount / widget.fuelPrice;
       });
     }
-  }
-  
-  void _handleAmountChanged(double value) {
-    setState(() {
-      amountPaid = value;
-      _calculateFuelQuantity();
-    });
   }
 
   @override
@@ -79,55 +72,158 @@ class _PurchaseCalculatorState extends State<PurchaseCalculator> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Center(
-            child: Text(
-              'Purchase Calculator',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w500,
-                color: isDarkMode ? Colors.white : Colors.black,
-              ),
+          Text(
+            'Purchase Amount',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+              color: isDarkMode ? Colors.grey[300] : Colors.grey[800],
             ),
           ),
-          Divider(
-            height: 24,
-            color: isDarkMode ? Colors.white.withOpacity(0.2) : Colors.grey[300],
-          ),
           
-          CalculatorInput(
-            id: 'amount-paid',
-            label: 'Amount Paid',
-            value: amountPaid,
-            onChanged: _handleAmountChanged,
-            unit: '₹',
-            placeholder: 'Enter amount paid',
-          ),
+          const SizedBox(height: 8),
           
           Container(
-            margin: const EdgeInsets.only(top: 16),
-            padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: isDarkMode 
-                  ? Colors.blue.withOpacity(0.1) 
-                  : Colors.blue.withOpacity(0.1),
+                ? Colors.grey[800]!.withOpacity(0.3)
+                : Colors.blue.withOpacity(0.05),
               borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: isDarkMode 
+                  ? Colors.grey[700]!.withOpacity(0.5)
+                  : Colors.grey.withOpacity(0.2),
+              ),
             ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      '₹ ${_amount.toStringAsFixed(0)}',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: isDarkMode ? Colors.white : Colors.black,
+                      ),
+                    ),
+                    Text(
+                      'Current Price: ₹${widget.fuelPrice.toStringAsFixed(2)}/${fuelUnit}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: isDarkMode ? Colors.grey[400] : Colors.grey[600],
+                      ),
+                    ),
+                  ],
+                ),
+                
+                const SizedBox(height: 16),
+                
+                Slider(
+                  value: _amount,
+                  min: 100,
+                  max: 5000,
+                  divisions: 49,
+                  activeColor: Theme.of(context).primaryColor,
+                  inactiveColor: isDarkMode 
+                      ? Colors.grey[700] 
+                      : Colors.grey[300],
+                  onChanged: (value) {
+                    setState(() {
+                      _amount = value;
+                      _calculateQuantity();
+                    });
+                  },
+                ),
+                
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      '₹100',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: isDarkMode ? Colors.grey[400] : Colors.grey[600],
+                      ),
+                    ),
+                    Text(
+                      '₹5000',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: isDarkMode ? Colors.grey[400] : Colors.grey[600],
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          
+          const SizedBox(height: 24),
+          
+          // Result section
+          Container(
+            width: double.infinity,
+            decoration: BoxDecoration(
+              color: isDarkMode
+                  ? Colors.grey[850]!.withOpacity(0.5)
+                  : Colors.grey[100]!.withOpacity(0.7),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: isDarkMode
+                    ? Colors.grey[700]!.withOpacity(0.5)
+                    : Colors.grey[300]!.withOpacity(0.5),
+              ),
+            ),
+            padding: const EdgeInsets.all(16),
+            child: Column(
               children: [
                 Text(
-                  'Fuel Quantity:',
+                  'You will get',
                   style: TextStyle(
                     fontSize: 14,
-                    color: isDarkMode ? Colors.grey[300] : Colors.grey[700],
+                    color: isDarkMode ? Colors.grey[400] : Colors.grey[700],
                   ),
                 ),
+                
+                const SizedBox(height: 8),
+                
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      _quantity.toStringAsFixed(2),
+                      style: TextStyle(
+                        fontSize: 32,
+                        fontWeight: FontWeight.bold,
+                        color: isDarkMode ? Colors.white : Colors.black,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: Text(
+                        fuelUnit,
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                          color: isDarkMode ? Colors.grey[300] : Colors.grey[700],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                
+                const SizedBox(height: 8),
+                
                 Text(
-                  '$fuelQuantity $fuelUnit',
+                  'of ${widget.selectedFuelType.toString().split('.').last.toUpperCase()}',
                   style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: isDarkMode ? Colors.white : Colors.black,
+                    fontSize: 14,
+                    color: isDarkMode ? Colors.grey[400] : Colors.grey[700],
                   ),
                 ),
               ],
