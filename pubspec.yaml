@@ -38,3 +38,13 @@ flutter:
           weight: 500
         - asset: assets/fonts/SF-Pro-Display-Bold.otf
           weight: 700
+
+# Android permissions for Google Play Store
+# These will be added to the AndroidManifest.xml file
+android_permissions:
+  - android.permission.INTERNET
+  - android.permission.ACCESS_NETWORK_STATE
+
+# iOS permissions
+ios_permissions:
+  - NSAppTransportSecurity

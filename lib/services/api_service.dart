@@ -6,14 +6,17 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/fuel_company.dart';
 import '../models/calculation.dart';
 import 'package:intl/intl.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 
 class ApiService {
-  // We'll use the Free Currency API as it's publicly accessible without auth for demo
-  // In a real-world app, you would use a dedicated fuel price API
-  static const String _baseUrl = 'https://api.currencyapi.com/v3/latest?apikey=cur_live_LjjgqiDNFKUr5Z3iEpHFcSPvEgjlhjuOQ9kcyDiY';
+  // RapidAPI for Indian Fuel Prices
+  static const String _baseUrl = "https://daily-petrol-diesel-lpg-cng-fuel-prices-in-india.p.rapidapi.com/v1/fuel-prices/lowest/petrol/2022-09-01/india/cities";
+  static const String _apiKey = "ddb2c8a0fdmshafd8fa095485b40p1eada5jsna22c622410d";
+  static const String _apiHost = "daily-petrol-diesel-lpg-cng-fuel-prices-in-india.p.rapidapi.com";
+  
   static const String _cachePricesKey = 'cached_fuel_prices';
   static const String _cacheTimeKey = 'cached_fuel_prices_time';
-  static const int _cacheExpiryMinutes = 10;
+  static const int _cacheExpiryMinutes = 10; // 10 minutes cache expiry
   
   // Singleton instance
   static final ApiService _instance = ApiService._internal();
@@ -23,6 +26,12 @@ class ApiService {
   }
   
   ApiService._internal();
+
+  // Check if device is connected to internet
+  Future<bool> isConnected() async {
+    var connectivityResult = await Connectivity().checkConnectivity();
+    return connectivityResult != ConnectivityResult.none;
+  }
   
   // Function to fetch fuel prices with caching
   Future<Map<String, dynamic>?> fetchFuelPrices() async {
@@ -35,7 +44,7 @@ class ApiService {
       final cacheTime = DateTime.parse(cacheTimeStr);
       final difference = now.difference(cacheTime).inMinutes;
       
-      // If cache is still valid (less than 10 minutes old)
+      // If cache is still valid (less than expiry time)
       if (difference < _cacheExpiryMinutes) {
         final cachedData = prefs.getString(_cachePricesKey);
         if (cachedData != null) {
@@ -44,17 +53,28 @@ class ApiService {
       }
     }
     
+    // Check internet connectivity
+    bool connected = await isConnected();
+    if (!connected) {
+      // Return cached data regardless of age if offline
+      return _fallbackToPreviousPricesOrGenerate(prefs);
+    }
+    
     // If no valid cached data, make an API call
     try {
-      // We'll use the currency API to generate some realistic fluctuating values
-      // In a real app, you'd connect to a proper fuel price API
-      final response = await http.get(Uri.parse(_baseUrl));
+      final response = await http.get(
+        Uri.parse(_baseUrl),
+        headers: {
+          'X-RapidAPI-Key': _apiKey,
+          'X-RapidAPI-Host': _apiHost,
+        },
+      );
       
       if (response.statusCode == 200) {
-        final currencyData = json.decode(response.body);
+        final responseData = json.decode(response.body);
         
-        // Convert currency data to fuel price format
-        final fuelPriceData = _convertCurrencyToFuelPrices(currencyData);
+        // Convert API response to our fuel price format
+        final fuelPriceData = _convertRapidApiToFuelPrices(responseData);
         
         // Save to cache
         prefs.setString(_cachePricesKey, json.encode(fuelPriceData));
@@ -63,6 +83,7 @@ class ApiService {
         return fuelPriceData;
       } else {
         print('Failed to fetch data: ${response.statusCode}');
+        print('Response body: ${response.body}');
         return _fallbackToPreviousPricesOrGenerate(prefs);
       }
     } catch (e) {
@@ -71,52 +92,110 @@ class ApiService {
     }
   }
   
-  // Convert currency API data to our fuel price format
-  Map<String, dynamic> _convertCurrencyToFuelPrices(Map<String, dynamic> currencyData) {
-    // Base prices for different fuel types
-    final basePrices = {
+  // Convert RapidAPI data to our fuel price format
+  Map<String, dynamic> _convertRapidApiToFuelPrices(Map<String, dynamic> apiData) {
+    // Create a map for fuel companies and their prices
+    final responseData = <String, Map<String, double>>{};
+    
+    // Default prices in case the API doesn't provide all fuel types
+    final basePrice = {
       'petrol': 96.72,
       'diesel': 89.62,
       'cng': 76.59,
     };
     
-    // Use currency rates to create realistic price variations
-    final rates = currencyData['data'] ?? {};
-    
-    // Companies with their associated currency for variation
-    final companyVariations = {
-      'iocl': {'currency': 'INR', 'petrol': 0, 'diesel': 0},
-      'bpcl': {'currency': 'USD', 'petrol': -0.3, 'diesel': -0.4},
-      'hpcl': {'currency': 'EUR', 'petrol': -0.1, 'diesel': -0.1},
-      'reliance': {'currency': 'GBP', 'petrol': 0.4, 'diesel': 0.5},
-      'nayara': {'currency': 'JPY', 'petrol': 0.2, 'diesel': 0.2},
-      'shell': {'currency': 'AUD', 'petrol': 1.8, 'diesel': 1.8},
-      'igl': {'currency': 'CAD', 'cng': 0},
-      'mgl': {'currency': 'CHF', 'cng': -3.1},
-      'adani': {'currency': 'CNY', 'cng': 1.7},
-    };
-    
-    // Generate response data
-    final responseData = <String, Map<String, double>>{};
-    
-    // Fill in the data for each company
-    companyVariations.forEach((company, config) {
-      responseData[company] = {};
+    try {
+      // Extract prices from the API response
+      var cities = apiData['data'] as List<dynamic>;
       
-      final currencyCode = config['currency'] as String;
-      final currencyValue = rates[currencyCode]?['value'] ?? 1.0;
+      // Get average prices from multiple cities
+      double petrolSum = 0;
+      double dieselSum = 0;
+      int petrolCount = 0;
+      int dieselCount = 0;
       
-      // Use currency fluctuations to influence fuel prices
-      config.forEach((fuelType, variation) {
-        if (fuelType != 'currency' && basePrices.containsKey(fuelType)) {
-          final basePrice = basePrices[fuelType]!;
-          // Use small percentage of currency variation + base variation
-          final currencyFactor = ((currencyValue - 1) * 0.05);
-          final variationFactor = 1 + ((variation as double) / 100) + currencyFactor;
-          responseData[company]![fuelType] = double.parse((basePrice * variationFactor).toStringAsFixed(2));
+      for (var city in cities) {
+        if (city['petrol'] != null && city['petrol'].toString().isNotEmpty) {
+          double price = double.tryParse(city['petrol'].toString()) ?? 0.0;
+          if (price > 0) {
+            petrolSum += price;
+            petrolCount++;
+          }
         }
-      });
-    });
+        
+        if (city['diesel'] != null && city['diesel'].toString().isNotEmpty) {
+          double price = double.tryParse(city['diesel'].toString()) ?? 0.0;
+          if (price > 0) {
+            dieselSum += price;
+            dieselCount++;
+          }
+        }
+      }
+      
+      // Calculate averages
+      double petrolAvg = petrolCount > 0 ? petrolSum / petrolCount : basePrice['petrol']!;
+      double dieselAvg = dieselCount > 0 ? dieselSum / dieselCount : basePrice['diesel']!;
+      
+      // Use a factor for CNG since the API might not provide it
+      double cngPrice = petrolAvg * 0.8; // Usually CNG is around 80% of petrol price
+      
+      // Create variation in prices for different companies
+      responseData['iocl'] = {
+        'petrol': petrolAvg,
+        'diesel': dieselAvg,
+      };
+      
+      responseData['bpcl'] = {
+        'petrol': petrolAvg - 0.3,
+        'diesel': dieselAvg - 0.4,
+      };
+      
+      responseData['hpcl'] = {
+        'petrol': petrolAvg - 0.1,
+        'diesel': dieselAvg - 0.1,
+      };
+      
+      responseData['reliance'] = {
+        'petrol': petrolAvg + 0.4,
+        'diesel': dieselAvg + 0.5,
+      };
+      
+      responseData['nayara'] = {
+        'petrol': petrolAvg + 0.2,
+        'diesel': dieselAvg + 0.2,
+      };
+      
+      responseData['shell'] = {
+        'petrol': petrolAvg + 1.8,
+        'diesel': dieselAvg + 1.8,
+      };
+      
+      // CNG companies
+      responseData['igl'] = {
+        'cng': cngPrice,
+      };
+      
+      responseData['mgl'] = {
+        'cng': cngPrice - 2.1,
+      };
+      
+      responseData['adani'] = {
+        'cng': cngPrice + 1.7,
+      };
+    } catch (e) {
+      print('Error processing API data: $e');
+      
+      // If there's an error parsing the API response, use the default prices
+      responseData['iocl'] = {'petrol': basePrice['petrol']!, 'diesel': basePrice['diesel']!};
+      responseData['bpcl'] = {'petrol': basePrice['petrol']! - 0.3, 'diesel': basePrice['diesel']! - 0.4};
+      responseData['hpcl'] = {'petrol': basePrice['petrol']! - 0.1, 'diesel': basePrice['diesel']! - 0.1};
+      responseData['reliance'] = {'petrol': basePrice['petrol']! + 0.4, 'diesel': basePrice['diesel']! + 0.5};
+      responseData['nayara'] = {'petrol': basePrice['petrol']! + 0.2, 'diesel': basePrice['diesel']! + 0.2};
+      responseData['shell'] = {'petrol': basePrice['petrol']! + 1.8, 'diesel': basePrice['diesel']! + 1.8};
+      responseData['igl'] = {'cng': basePrice['cng']!};
+      responseData['mgl'] = {'cng': basePrice['cng']! - 3.1};
+      responseData['adani'] = {'cng': basePrice['cng']! + 1.7};
+    }
     
     return {
       'success': true,

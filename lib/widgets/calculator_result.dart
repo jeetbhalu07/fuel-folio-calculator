@@ -14,10 +14,14 @@ class CalculatorResult extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.9),
+        color: isDarkMode 
+            ? Colors.grey[900]!.withOpacity(0.7) 
+            : Colors.white.withOpacity(0.9),
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
@@ -27,21 +31,27 @@ class CalculatorResult extends StatelessWidget {
           ),
         ],
         border: Border.all(
-          color: Colors.white.withOpacity(0.3),
+          color: isDarkMode 
+              ? Colors.white.withOpacity(0.1)
+              : Colors.white.withOpacity(0.3),
           width: 1,
         ),
       ),
       padding: const EdgeInsets.all(20),
       child: Column(
         children: [
-          const Text(
+          Text(
             'Calculation Results',
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w500,
+              color: isDarkMode ? Colors.white : Colors.black,
             ),
           ),
-          const Divider(height: 24),
+          Divider(
+            height: 24,
+            color: isDarkMode ? Colors.white.withOpacity(0.2) : Colors.grey[300],
+          ),
           
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -50,14 +60,15 @@ class CalculatorResult extends StatelessWidget {
                 'Fuel Required:',
                 style: TextStyle(
                   fontSize: 14,
-                  color: Colors.grey[600],
+                  color: isDarkMode ? Colors.grey[300] : Colors.grey[600],
                 ),
               ),
               Text(
                 '${result.fuelRequired.toStringAsFixed(2)} $fuelUnit',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w600,
+                  color: isDarkMode ? Colors.white : Colors.black,
                 ),
               ),
             ],
@@ -72,11 +83,11 @@ class CalculatorResult extends StatelessWidget {
                 'Total Cost:',
                 style: TextStyle(
                   fontSize: 14,
-                  color: Colors.grey[600],
+                  color: isDarkMode ? Colors.grey[300] : Colors.grey[600],
                 ),
               ),
               Text(
-                '\$${result.totalCost.toStringAsFixed(2)}',
+                '₹${result.totalCost.toStringAsFixed(2)}',
                 style: TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,

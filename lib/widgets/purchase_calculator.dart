@@ -78,7 +78,6 @@ class _PurchaseCalculatorState extends State<PurchaseCalculator> {
   double fuelQuantity = 0.0;
   double billQuantity = 0.0;
   bool? verificationResult;
-  bool _showSuccessMessage = false;
   bool _showVerificationMessage = false;
   List<PurchaseHistory> _purchaseHistory = [];
   final ApiService _apiService = ApiService();
@@ -151,46 +150,6 @@ class _PurchaseCalculatorState extends State<PurchaseCalculator> {
       if (mounted) {
         setState(() {
           _showVerificationMessage = false;
-        });
-      }
-    });
-  }
-  
-  void _uploadBill() {
-    // In a real app, this would use camera/gallery and OCR
-    // For now, we'll simulate extracting data
-    _showSnackBar(
-      "Bill uploaded! This is a simulation. In a real app, OCR would extract values from your bill.",
-      Colors.blue
-    );
-    
-    // Simulate processing
-    Future.delayed(const Duration(milliseconds: 1500), () {
-      if (mounted) {
-        // Generate a slightly different quantity to simulate real-world scenarios
-        final random = DateTime.now().millisecondsSinceEpoch % 100 / 100;
-        final randomOffset = random > 0.5 ? 0 : (random * 0.5) - 0.25;
-        final extractedQuantity = double.parse(
-          (amountPaid / widget.fuelPrice + randomOffset).toStringAsFixed(2)
-        );
-        
-        setState(() {
-          billQuantity = extractedQuantity;
-          _showSuccessMessage = true;
-        });
-        
-        _showSnackBar(
-          "Extracted fuel quantity: $extractedQuantity ${getFuelUnit(widget.selectedFuelType)}",
-          Colors.green
-        );
-        
-        // Hide success message after 2 seconds
-        Future.delayed(const Duration(seconds: 2), () {
-          if (mounted) {
-            setState(() {
-              _showSuccessMessage = false;
-            });
-          }
         });
       }
     });
@@ -290,30 +249,36 @@ class _PurchaseCalculatorState extends State<PurchaseCalculator> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Center(
+          Center(
             child: Text(
               'Purchase Calculator',
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w500,
+                color: isDarkMode ? Colors.white : Colors.black,
               ),
             ),
           ),
-          const Divider(height: 24),
+          Divider(
+            height: 24,
+            color: isDarkMode ? Colors.white.withOpacity(0.2) : Colors.grey[300],
+          ),
           
           CalculatorInput(
             id: 'amount-paid',
             label: 'Amount Paid',
             value: amountPaid,
             onChanged: _handleAmountChanged,
-            unit: '\$',
+            unit: '₹',
             placeholder: 'Enter amount paid',
           ),
           
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Colors.blue.withOpacity(0.1),
+              color: isDarkMode 
+                  ? Colors.blue.withOpacity(0.1) 
+                  : Colors.blue.withOpacity(0.1),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Row(
@@ -328,9 +293,10 @@ class _PurchaseCalculatorState extends State<PurchaseCalculator> {
                 ),
                 Text(
                   '$fuelQuantity $fuelUnit',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
+                    color: isDarkMode ? Colors.white : Colors.black,
                   ),
                 ),
               ],
@@ -339,45 +305,24 @@ class _PurchaseCalculatorState extends State<PurchaseCalculator> {
           
           const Divider(height: 32),
           
-          const Text(
+          Text(
             'Verify Your Bill',
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w500,
+              color: isDarkMode ? Colors.white : Colors.black,
             ),
           ),
           
           const SizedBox(height: 16),
           
-          Row(
-            children: [
-              Expanded(
-                child: ElevatedButton.icon(
-                  onPressed: _uploadBill,
-                  icon: const Icon(Icons.upload_file),
-                  label: const Text('Upload Bill'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: isDarkMode ? Colors.grey[800] : Colors.grey[200],
-                    foregroundColor: isDarkMode ? Colors.white : Colors.grey[800],
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: CalculatorInput(
-                  id: 'bill-quantity',
-                  label: 'Quantity on Bill',
-                  value: billQuantity,
-                  onChanged: _handleBillQuantityChanged,
-                  unit: fuelUnit,
-                  placeholder: 'Enter quantity',
-                ),
-              ),
-            ],
+          CalculatorInput(
+            id: 'bill-quantity',
+            label: 'Quantity on Bill',
+            value: billQuantity,
+            onChanged: _handleBillQuantityChanged,
+            unit: fuelUnit,
+            placeholder: 'Enter quantity from bill',
           ),
           
           const SizedBox(height: 16),
@@ -397,37 +342,6 @@ class _PurchaseCalculatorState extends State<PurchaseCalculator> {
               child: const Text('Verify Bill'),
             ),
           ),
-          
-          // Success upload message
-          if (_showSuccessMessage)
-            Container(
-              margin: const EdgeInsets.only(top: 10),
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.green.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: Colors.green.withOpacity(0.5),
-                ),
-              ),
-              child: Row(
-                children: [
-                  const Icon(
-                    Icons.check_circle,
-                    color: Colors.green,
-                    size: 16,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Extracted $billQuantity $fuelUnit from bill',
-                    style: const TextStyle(
-                      color: Colors.green,
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
-              ),
-            ),
             
           // Verification result
           if (_showVerificationMessage && verificationResult != null)
@@ -473,11 +387,12 @@ class _PurchaseCalculatorState extends State<PurchaseCalculator> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
+                Text(
                   'Recent Purchase History',
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w500,
+                    color: isDarkMode ? Colors.white : Colors.black,
                   ),
                 ),
                 TextButton(
@@ -565,10 +480,11 @@ class _PurchaseCalculatorState extends State<PurchaseCalculator> {
                                   ),
                                 ),
                                 Text(
-                                  '\$${item.amountPaid.toStringAsFixed(2)}',
-                                  style: const TextStyle(
+                                  '₹${item.amountPaid.toStringAsFixed(2)}',
+                                  style: TextStyle(
                                     fontSize: 14,
                                     fontWeight: FontWeight.w500,
+                                    color: isDarkMode ? Colors.white : Colors.black,
                                   ),
                                 ),
                               ],
@@ -585,9 +501,10 @@ class _PurchaseCalculatorState extends State<PurchaseCalculator> {
                                 ),
                                 Text(
                                   '${item.fuelQuantity.toStringAsFixed(2)} ${getFuelUnit(item.fuelType)}',
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontSize: 14,
                                     fontWeight: FontWeight.w500,
+                                    color: isDarkMode ? Colors.white : Colors.black,
                                   ),
                                 ),
                               ],
