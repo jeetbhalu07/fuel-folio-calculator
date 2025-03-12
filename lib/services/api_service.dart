@@ -8,9 +8,7 @@ import 'package:intl/intl.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 
 class ApiService {
-  static const String _baseUrl = "https://daily-petrol-diesel-lpg-cng-fuel-prices-in-india.p.rapidapi.com/v1/fuel-prices/india/all";
-  static const String _apiKey = "ddb2c8a0fdmshafd8fa095485b40p1eada5jsna22c622410d3";
-  static const String _apiHost = "daily-petrol-diesel-lpg-cng-fuel-prices-in-india.p.rapidapi.com";
+  static const String _baseUrl = "https://fuel-price-api.onrender.com/api/prices";
   
   static const String _cachePricesKey = 'cached_fuel_prices';
   static const String _cacheTimeKey = 'cached_fuel_prices_time';
@@ -56,25 +54,21 @@ class ApiService {
     }
     
     try {
-      print('Fetching fuel prices from API: $_baseUrl');
+      print('Fetching fuel prices from alternative API: $_baseUrl');
       
-      // Make the API request with proper headers
+      // Make request to our simpler API instead of RapidAPI
       final response = await http.get(
         Uri.parse(_baseUrl),
-        headers: {
-          'X-RapidAPI-Key': _apiKey,
-          'X-RapidAPI-Host': _apiHost,
-        },
       );
       
       print('API Status code: ${response.statusCode}');
       
       if (response.statusCode == 200) {
-        print('API Response: ${response.body.substring(0, 100)}...');
+        print('API Response: ${response.body.substring(0, min(100, response.body.length))}...');
         final responseData = json.decode(response.body);
         
         // Convert the API response to our expected format
-        final fuelPriceData = _convertRapidApiToFuelPrices(responseData);
+        final fuelPriceData = _convertSimpleApiToFuelPrices(responseData);
         
         // Cache the data
         prefs.setString(_cachePricesKey, json.encode(fuelPriceData));
@@ -92,96 +86,74 @@ class ApiService {
     }
   }
   
-  Map<String, dynamic> _convertRapidApiToFuelPrices(Map<String, dynamic> apiData) {
+  int min(int a, int b) {
+    return a < b ? a : b;
+  }
+  
+  Map<String, dynamic> _convertSimpleApiToFuelPrices(Map<String, dynamic> apiData) {
     final responseData = <String, Map<String, double>>{};
     
     try {
       print('Converting API data: ${apiData.keys}');
       
-      // Extract the required data from the API response
-      // The structure might be different, so we need to check the actual response
-      if (apiData.containsKey('data') && apiData['data'] is Map) {
-        final data = apiData['data'] as Map<String, dynamic>;
-        
-        // Get base prices for different fuels
-        double petrolPrice = 0.0;
-        double dieselPrice = 0.0;
-        double cngPrice = 0.0;
-        
-        // Try to extract prices from the response structure
-        if (data.containsKey('petrol')) {
-          petrolPrice = _extractPriceFromData(data['petrol']);
-        } else if (data.containsKey('delhi') && data['delhi'] is Map) {
-          final delhi = data['delhi'] as Map<String, dynamic>;
-          if (delhi.containsKey('petrol')) {
-            petrolPrice = _extractPriceFromData(delhi['petrol']);
+      // Extract prices from the simpler API response
+      double petrolPrice = 96.72;  // Default values
+      double dieselPrice = 89.62;
+      double cngPrice = 76.59;
+      
+      // Try to extract from new API format
+      if (apiData.containsKey('prices')) {
+        final prices = apiData['prices'];
+        if (prices is Map) {
+          if (prices.containsKey('petrol')) {
+            petrolPrice = _extractPriceFromData(prices['petrol']);
+          }
+          if (prices.containsKey('diesel')) {
+            dieselPrice = _extractPriceFromData(prices['diesel']);
+          }
+          if (prices.containsKey('cng')) {
+            cngPrice = _extractPriceFromData(prices['cng']);
           }
         }
-        
-        if (data.containsKey('diesel')) {
-          dieselPrice = _extractPriceFromData(data['diesel']);
-        } else if (data.containsKey('delhi') && data['delhi'] is Map) {
-          final delhi = data['delhi'] as Map<String, dynamic>;
-          if (delhi.containsKey('diesel')) {
-            dieselPrice = _extractPriceFromData(delhi['diesel']);
-          }
-        }
-        
-        if (data.containsKey('cng')) {
-          cngPrice = _extractPriceFromData(data['cng']);
-        } else if (data.containsKey('delhi') && data['delhi'] is Map) {
-          final delhi = data['delhi'] as Map<String, dynamic>;
-          if (delhi.containsKey('cng')) {
-            cngPrice = _extractPriceFromData(delhi['cng']);
-          }
-        }
-        
-        print('Extracted prices: Petrol: $petrolPrice, Diesel: $dieselPrice, CNG: $cngPrice');
-        
-        // If we couldn't extract prices, use default values
-        if (petrolPrice <= 0) petrolPrice = 96.72;
-        if (dieselPrice <= 0) dieselPrice = 89.62;
-        if (cngPrice <= 0) cngPrice = 76.59;
-        
-        // Set up company prices with variations
-        responseData['iocl'] = {
-          'petrol': petrolPrice,
-          'diesel': dieselPrice,
-        };
-        
-        responseData['bpcl'] = {
-          'petrol': petrolPrice - 0.3,
-          'diesel': dieselPrice - 0.4,
-        };
-        
-        responseData['hpcl'] = {
-          'petrol': petrolPrice - 0.1,
-          'diesel': dieselPrice - 0.1,
-        };
-        
-        responseData['reliance'] = {
-          'petrol': petrolPrice + 0.4,
-          'diesel': dieselPrice + 0.5,
-        };
-        
-        responseData['nayara'] = {
-          'petrol': petrolPrice + 0.2,
-          'diesel': dieselPrice + 0.2,
-        };
-        
-        responseData['shell'] = {
-          'petrol': petrolPrice + 1.8,
-          'diesel': dieselPrice + 1.8,
-        };
-        
-        // Add CNG prices for applicable companies
-        responseData['igl'] = {'cng': cngPrice};
-        responseData['mgl'] = {'cng': cngPrice - 3.1};
-        responseData['adani'] = {'cng': cngPrice + 1.7};
-      } else {
-        print('API data does not contain expected structure');
-        return _generateMockPriceData()['data'] as Map<String, dynamic>;
       }
+      
+      print('Extracted prices: Petrol: $petrolPrice, Diesel: $dieselPrice, CNG: $cngPrice');
+      
+      // Set up company prices with variations
+      responseData['iocl'] = {
+        'petrol': petrolPrice,
+        'diesel': dieselPrice,
+      };
+      
+      responseData['bpcl'] = {
+        'petrol': petrolPrice - 0.3,
+        'diesel': dieselPrice - 0.4,
+      };
+      
+      responseData['hpcl'] = {
+        'petrol': petrolPrice - 0.1,
+        'diesel': dieselPrice - 0.1,
+      };
+      
+      responseData['reliance'] = {
+        'petrol': petrolPrice + 0.4,
+        'diesel': dieselPrice + 0.5,
+      };
+      
+      responseData['nayara'] = {
+        'petrol': petrolPrice + 0.2,
+        'diesel': dieselPrice + 0.2,
+      };
+      
+      responseData['shell'] = {
+        'petrol': petrolPrice + 1.8,
+        'diesel': dieselPrice + 1.8,
+      };
+      
+      // Add CNG prices for applicable companies
+      responseData['igl'] = {'cng': cngPrice};
+      responseData['mgl'] = {'cng': cngPrice - 3.1};
+      responseData['adani'] = {'cng': cngPrice + 1.7};
       
     } catch (e) {
       print('Error processing API data: $e');
@@ -329,4 +301,3 @@ class ApiService {
     });
   }
 }
-

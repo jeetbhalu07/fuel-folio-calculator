@@ -19,11 +19,21 @@ class PurchaseCalculator extends StatefulWidget {
 class _PurchaseCalculatorState extends State<PurchaseCalculator> {
   double _amount = 500;
   double _quantity = 0;
+  
+  // Controllers for text input
+  final TextEditingController _amountController = TextEditingController(text: '500');
+  bool _isEditing = false;
 
   @override
   void initState() {
     super.initState();
     _calculateQuantity();
+  }
+
+  @override
+  void dispose() {
+    _amountController.dispose();
+    super.dispose();
   }
 
   @override
@@ -101,12 +111,60 @@ class _PurchaseCalculatorState extends State<PurchaseCalculator> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
-                      '₹ ${_amount.toStringAsFixed(0)}',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: isDarkMode ? Colors.white : Colors.black,
+                    // Amount input with TextField
+                    Expanded(
+                      child: TextField(
+                        controller: _amountController,
+                        keyboardType: TextInputType.number,
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: isDarkMode ? Colors.white : Colors.black,
+                        ),
+                        decoration: InputDecoration(
+                          border: InputBorder.none,
+                          isDense: true,
+                          contentPadding: EdgeInsets.zero,
+                          prefixText: '₹ ',
+                          prefixStyle: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: isDarkMode ? Colors.white : Colors.black,
+                          ),
+                        ),
+                        onChanged: (value) {
+                          setState(() {
+                            _isEditing = true;
+                          });
+                          if (value.isNotEmpty) {
+                            try {
+                              final parsedValue = double.parse(value);
+                              setState(() {
+                                _amount = parsedValue;
+                              });
+                              _calculateQuantity();
+                            } catch (e) {
+                              // Handle invalid input
+                              print('Invalid amount input: $e');
+                            }
+                          }
+                        },
+                        onTap: () {
+                          setState(() {
+                            _isEditing = true;
+                          });
+                        },
+                        onEditingComplete: () {
+                          setState(() {
+                            _isEditing = false;
+                          });
+                          FocusScope.of(context).unfocus();
+                        },
+                        onSubmitted: (_) {
+                          setState(() {
+                            _isEditing = false;
+                          });
+                        },
                       ),
                     ),
                     Text(
@@ -133,6 +191,9 @@ class _PurchaseCalculatorState extends State<PurchaseCalculator> {
                   onChanged: (value) {
                     setState(() {
                       _amount = value;
+                      if (!_isEditing) {
+                        _amountController.text = value.toStringAsFixed(0);
+                      }
                       _calculateQuantity();
                     });
                   },

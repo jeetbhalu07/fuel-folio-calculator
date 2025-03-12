@@ -1,7 +1,7 @@
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'dart:async';
 import '../models/calculation.dart';
 import '../models/calculation_history_provider.dart';
 import '../models/fuel_company.dart';
@@ -13,7 +13,7 @@ import 'calculator_result.dart';
 import 'purchase_calculator.dart';
 
 class Calculator extends StatefulWidget {
-  const Calculator({Key? key}) : super(key: key);
+  const Calculator({Key? key}) : super(key);
 
   @override
   State<Calculator> createState() => _CalculatorState();
@@ -64,6 +64,9 @@ class _CalculatorState extends State<Calculator> with SingleTickerProviderStateM
       setState(() {
         _isOffline = result == ConnectivityResult.none;
       });
+      
+      // Always refresh prices on start, even if offline (will use cached data)
+      _refreshPrices();
     });
     
     // Monitor connectivity changes
@@ -80,9 +83,6 @@ class _CalculatorState extends State<Calculator> with SingleTickerProviderStateM
         _refreshPrices();
       }
     });
-    
-    // Fetch prices when app loads
-    _refreshPrices();
   }
   
   @override
@@ -161,17 +161,7 @@ class _CalculatorState extends State<Calculator> with SingleTickerProviderStateM
   }
   
   Future<void> _refreshPrices() async {
-    if (_isOffline) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Cannot update prices while offline. Using cached prices.'),
-          backgroundColor: Colors.orange,
-          duration: Duration(seconds: 3),
-        ),
-      );
-      return;
-    }
-    
+    // Show loading indicator even when offline
     setState(() {
       _isLoadingPrices = true;
     });
@@ -197,20 +187,30 @@ class _CalculatorState extends State<Calculator> with SingleTickerProviderStateM
           }
         });
         
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Fuel prices updated successfully. Last update: $lastUpdateTime'),
-            backgroundColor: Colors.green,
-            duration: const Duration(seconds: 3),
-          ),
-        );
+        if (_isOffline) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Using cached fuel prices while offline.'),
+              backgroundColor: Colors.orange,
+              duration: Duration(seconds: 3),
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Fuel prices updated successfully. Last update: $lastUpdateTime'),
+              backgroundColor: Colors.green,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
       }
     } catch (e) {
       print('Error refreshing prices: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to update fuel prices: ${e.toString().substring(0, 50)}...'),
+            content: Text('Using default fuel prices: ${e.toString().substring(0, min(50, e.toString().length))}...'),
             backgroundColor: Colors.red,
             duration: const Duration(seconds: 3),
           ),
@@ -223,6 +223,10 @@ class _CalculatorState extends State<Calculator> with SingleTickerProviderStateM
         });
       }
     }
+  }
+
+  int min(int a, int b) {
+    return a < b ? a : b;
   }
 
   @override
