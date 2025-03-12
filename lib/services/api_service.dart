@@ -6,6 +6,7 @@ import '../models/fuel_company.dart';
 import '../models/calculation.dart';
 import 'package:intl/intl.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'scraping_service.dart';
 
 class ApiService {
   static const String _baseUrl = "https://fuel-price-api.onrender.com/api/prices";
@@ -31,6 +32,15 @@ class ApiService {
     final prefs = await SharedPreferences.getInstance();
     final now = DateTime.now();
     
+    // Try scraping first
+    final scrapingService = ScrapingService();
+    final scrapedData = await scrapingService.scrapeLatestPrices();
+    
+    if (scrapedData['success'] == true) {
+      return scrapedData['data'];
+    }
+    
+    // If scraping fails, fall back to API or cached data
     // Check cache validity
     final cacheTimeStr = prefs.getString(_cacheTimeKey);
     if (cacheTimeStr != null) {
