@@ -54,9 +54,8 @@ class ApiService {
     }
     
     try {
-      print('Fetching fuel prices from alternative API: $_baseUrl');
+      print('Fetching fuel prices from API: $_baseUrl');
       
-      // Make request to our simpler API instead of RapidAPI
       final response = await http.get(
         Uri.parse(_baseUrl),
       );
@@ -64,17 +63,13 @@ class ApiService {
       print('API Status code: ${response.statusCode}');
       
       if (response.statusCode == 200) {
-        print('API Response: ${response.body.substring(0, min(100, response.body.length))}...');
         final responseData = json.decode(response.body);
         
-        // Convert the API response to our expected format
-        final fuelPriceData = _convertSimpleApiToFuelPrices(responseData);
-        
         // Cache the data
-        prefs.setString(_cachePricesKey, json.encode(fuelPriceData));
+        prefs.setString(_cachePricesKey, json.encode(responseData));
         prefs.setString(_cacheTimeKey, now.toIso8601String());
         
-        return fuelPriceData;
+        return responseData;
       } else {
         print('Failed to fetch data: ${response.statusCode}');
         print('Response body: ${response.body}');
