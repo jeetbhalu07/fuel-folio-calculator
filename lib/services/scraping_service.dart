@@ -19,7 +19,7 @@ class ScrapingService {
   
   ScrapingService._internal();
 
-  Future<Map<String, dynamic>> scrapeLatestPrices() async {
+  Future<Map<String, dynamic>?> scrapeLatestPrices() async {
     final prefs = await SharedPreferences.getInstance();
     final now = DateTime.now();
     
@@ -33,7 +33,16 @@ class ScrapingService {
         final cachedData = prefs.getString(_cacheScrapedPricesKey);
         if (cachedData != null) {
           print('Using cached scraped fuel prices');
-          return {'success': true, 'data': cachedData};
+          // Convert the cached string to a Map
+          try {
+            // Parse the string representation of Map back to an actual Map
+            // This handles the case where we stored Map.toString()
+            final Map<String, dynamic> parsedData = _stringToMap(cachedData);
+            return parsedData;
+          } catch (e) {
+            print('Error parsing cached data: $e');
+            // Continue with scraping if parsing fails
+          }
         }
       }
     }
@@ -58,23 +67,89 @@ class ScrapingService {
         final priceData = _extractPricesFromHTML(document);
         
         if (priceData.isNotEmpty) {
-          // Cache the scraped data
+          // Cache the scraped data as string representation
           prefs.setString(_cacheScrapedPricesKey, priceData.toString());
           prefs.setString(_cacheScrapedTimeKey, now.toIso8601String());
           
-          return {'success': true, 'data': priceData};
+          return priceData;
         } else {
           print('Failed to extract prices from HTML');
-          return {'success': false, 'error': 'No prices found on the page'};
+          return null;
         }
       } else {
         print('Failed to scrape website: ${response.statusCode}');
-        return {'success': false, 'error': 'HTTP error ${response.statusCode}'};
+        return null;
       }
     } catch (e) {
       print('Error scraping fuel prices: $e');
-      return {'success': false, 'error': e.toString()};
+      return null;
     }
+  }
+  
+  // Helper method to convert a string representation of a Map back to a Map
+  Map<String, dynamic> _stringToMap(String mapString) {
+    // Basic conversion of string representation of map to actual map
+    // This is a simple implementation - might need improvement for complex maps
+    Map<String, dynamic> result = {};
+    
+    // Remove the curly braces and split into key-value pairs
+    String content = mapString.trim();
+    if (content.startsWith('{')) content = content.substring(1);
+    if (content.endsWith('}')) content = content.substring(0, content.length - 1);
+    
+    // Extract timestamp if it exists
+    final timestampPattern = RegExp(r'timestamp: ([^,}]+)');
+    final timestampMatch = timestampPattern.firstMatch(content);
+    String? timestamp;
+    
+    if (timestampMatch != null) {
+      timestamp = timestampMatch.group(1);
+      // Remove the timestamp part from the content
+      content = content.replaceAll(timestampPattern, '');
+      if (content.contains('prices: {')) {
+        // Handle the case where prices is a nested map
+        final pricesPattern = RegExp(r'prices: \{([^}]+)\}');
+        final pricesMatch = pricesPattern.firstMatch(content);
+        
+        if (pricesMatch != null) {
+          final pricesContent = pricesMatch.group(1);
+          if (pricesContent != null) {
+            Map<String, double> prices = {};
+            
+            // Parse price entries
+            final priceEntries = pricesContent.split(',');
+            for (var entry in priceEntries) {
+              if (entry.trim().isEmpty) continue;
+              
+              final parts = entry.split(':');
+              if (parts.length == 2) {
+                final key = parts[0].trim().replaceAll(RegExp(r'[\'"]'), '');
+                final valueStr = parts[1].trim();
+                
+                try {
+                  prices[key] = double.parse(valueStr);
+                } catch (e) {
+                  print('Error parsing price value: $valueStr');
+                }
+              }
+            }
+            
+            result['prices'] = prices;
+          }
+        }
+      }
+      
+      // Add timestamp
+      if (timestamp != null) {
+        result['timestamp'] = timestamp;
+      }
+    } else {
+      // Fallback parsing if the format is different
+      // This is a placeholder for a more robust parsing mechanism
+      result = {'success': true, 'data': {}, 'timestamp': DateTime.now().toIso8601String()};
+    }
+    
+    return result;
   }
   
   Map<String, dynamic> _extractPricesFromHTML(Document document) {
