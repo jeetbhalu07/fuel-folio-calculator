@@ -36,7 +36,6 @@ class ScrapingService {
           // Convert the cached string to a Map
           try {
             // Parse the string representation of Map back to an actual Map
-            // This handles the case where we stored Map.toString()
             final Map<String, dynamic> parsedData = _stringToMap(cachedData);
             return parsedData;
           } catch (e) {
@@ -68,8 +67,8 @@ class ScrapingService {
         
         if (priceData.isNotEmpty) {
           // Cache the scraped data as string representation
-          prefs.setString(_cacheScrapedPricesKey, priceData.toString());
-          prefs.setString(_cacheScrapedTimeKey, now.toIso8601String());
+          await prefs.setString(_cacheScrapedPricesKey, priceData.toString());
+          await prefs.setString(_cacheScrapedTimeKey, now.toIso8601String());
           
           return priceData;
         } else {
@@ -146,7 +145,7 @@ class ScrapingService {
     } else {
       // Fallback parsing if the format is different
       // This is a placeholder for a more robust parsing mechanism
-      result = {'success': true, 'data': {}, 'timestamp': DateTime.now().toIso8601String()};
+      result = {'prices': {}, 'timestamp': DateTime.now().toIso8601String()};
     }
     
     return result;
