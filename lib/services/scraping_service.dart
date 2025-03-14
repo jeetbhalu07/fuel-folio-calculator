@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:html/parser.dart' show parse;
 import 'package:html/dom.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 
 class ScrapingService {
   static const String _baseUrl = "https://www.mypetrolprice.com/";
@@ -18,6 +19,12 @@ class ScrapingService {
   }
   
   ScrapingService._internal();
+
+  // Check for internet connectivity
+  Future<bool> _hasInternetConnection() async {
+    var connectivityResult = await Connectivity().checkConnectivity();
+    return connectivityResult != ConnectivityResult.none;
+  }
 
   Future<Map<String, dynamic>?> scrapeLatestPrices() async {
     final prefs = await SharedPreferences.getInstance();
@@ -46,6 +53,31 @@ class ScrapingService {
       }
     }
     
+    // Check internet connectivity before attempting to scrape
+    bool hasInternet = await _hasInternetConnection();
+    if (!hasInternet) {
+      print('No internet connection, using cache if available');
+      // Try to use cache even if expired
+      final cachedData = prefs.getString(_cacheScrapedPricesKey);
+      if (cachedData != null) {
+        try {
+          return _stringToMap(cachedData);
+        } catch (e) {
+          print('Error parsing cached data: $e');
+          // Return empty data structure when offline and no cache
+          return {
+            'prices': {},
+            'timestamp': now.toIso8601String(),
+          };
+        }
+      }
+      // Return empty data structure when offline and no cache
+      return {
+        'prices': {},
+        'timestamp': now.toIso8601String(),
+      };
+    }
+    
     try {
       print('Scraping fuel prices from: $_baseUrl');
       
@@ -57,6 +89,12 @@ class ScrapingService {
           'Accept': 'text/html,application/xhtml+xml,application/xml',
           'Accept-Language': 'en-US,en;q=0.9',
         },
+      ).timeout(
+        const Duration(seconds: 15),
+        onTimeout: () {
+          print('Connection timeout');
+          return http.Response('Timeout', 408);
+        },
       );
       
       print('Scraping status code: ${response.statusCode}');
@@ -66,85 +104,105 @@ class ScrapingService {
         final priceData = _extractPricesFromHTML(document);
         
         if (priceData.isNotEmpty) {
-          // Cache the scraped data as string representation
+          // Cache the scraped data
           await prefs.setString(_cacheScrapedPricesKey, priceData.toString());
           await prefs.setString(_cacheScrapedTimeKey, now.toIso8601String());
           
           return priceData;
         } else {
           print('Failed to extract prices from HTML');
-          return null;
+          return _fallbackToCache(prefs);
         }
       } else {
         print('Failed to scrape website: ${response.statusCode}');
-        return null;
+        return _fallbackToCache(prefs);
       }
     } catch (e) {
       print('Error scraping fuel prices: $e');
-      return null;
+      return _fallbackToCache(prefs);
     }
+  }
+  
+  // Helper method to fall back to cache
+  Future<Map<String, dynamic>?> _fallbackToCache(SharedPreferences prefs) async {
+    final cachedData = prefs.getString(_cacheScrapedPricesKey);
+    if (cachedData != null) {
+      try {
+        return _stringToMap(cachedData);
+      } catch (e) {
+        print('Error parsing cached data: $e');
+      }
+    }
+    // Return empty data structure when no cache
+    return {
+      'prices': {},
+      'timestamp': DateTime.now().toIso8601String(),
+    };
   }
   
   // Helper method to convert a string representation of a Map back to a Map
   Map<String, dynamic> _stringToMap(String mapString) {
     // Basic conversion of string representation of map to actual map
-    // This is a simple implementation - might need improvement for complex maps
     Map<String, dynamic> result = {};
     
-    // Remove the curly braces and split into key-value pairs
-    String content = mapString.trim();
-    if (content.startsWith('{')) content = content.substring(1);
-    if (content.endsWith('}')) content = content.substring(0, content.length - 1);
-    
-    // Extract timestamp if it exists
-    final timestampPattern = RegExp(r'timestamp: ([^,}]+)');
-    final timestampMatch = timestampPattern.firstMatch(content);
-    String? timestamp;
-    
-    if (timestampMatch != null) {
-      timestamp = timestampMatch.group(1);
-      // Remove the timestamp part from the content
-      content = content.replaceAll(timestampPattern, '');
-      if (content.contains('prices: {')) {
-        // Handle the case where prices is a nested map
-        final pricesPattern = RegExp(r'prices: \{([^}]+)\}');
-        final pricesMatch = pricesPattern.firstMatch(content);
-        
-        if (pricesMatch != null) {
-          final pricesContent = pricesMatch.group(1);
-          if (pricesContent != null) {
-            Map<String, double> prices = {};
-            
-            // Parse price entries
-            final priceEntries = pricesContent.split(',');
-            for (var entry in priceEntries) {
-              if (entry.trim().isEmpty) continue;
+    try {
+      // Remove the curly braces and split into key-value pairs
+      String content = mapString.trim();
+      if (content.startsWith('{')) content = content.substring(1);
+      if (content.endsWith('}')) content = content.substring(0, content.length - 1);
+      
+      // Extract timestamp if it exists
+      final timestampPattern = RegExp(r'timestamp: ([^,}]+)');
+      final timestampMatch = timestampPattern.firstMatch(content);
+      String? timestamp;
+      
+      if (timestampMatch != null) {
+        timestamp = timestampMatch.group(1);
+        // Remove the timestamp part from the content
+        content = content.replaceAll(timestampPattern, '');
+        if (content.contains('prices: {')) {
+          // Handle the case where prices is a nested map
+          final pricesPattern = RegExp(r'prices: \{([^}]+)\}');
+          final pricesMatch = pricesPattern.firstMatch(content);
+          
+          if (pricesMatch != null) {
+            final pricesContent = pricesMatch.group(1);
+            if (pricesContent != null) {
+              Map<String, double> prices = {};
               
-              final parts = entry.split(':');
-              if (parts.length == 2) {
-                final key = parts[0].trim().replaceAll(RegExp(r'[\'"]'), '');
-                final valueStr = parts[1].trim();
+              // Parse price entries
+              final priceEntries = pricesContent.split(',');
+              for (var entry in priceEntries) {
+                if (entry.trim().isEmpty) continue;
                 
-                try {
-                  prices[key] = double.parse(valueStr);
-                } catch (e) {
-                  print('Error parsing price value: $valueStr');
+                final parts = entry.split(':');
+                if (parts.length == 2) {
+                  final key = parts[0].trim().replaceAll(RegExp(r'[\'"]'), '');
+                  final valueStr = parts[1].trim();
+                  
+                  try {
+                    prices[key] = double.parse(valueStr);
+                  } catch (e) {
+                    print('Error parsing price value: $valueStr');
+                  }
                 }
               }
+              
+              result['prices'] = prices;
             }
-            
-            result['prices'] = prices;
           }
         }
+        
+        // Add timestamp
+        if (timestamp != null) {
+          result['timestamp'] = timestamp;
+        }
+      } else {
+        // Fallback parsing if the format is different
+        result = {'prices': {}, 'timestamp': DateTime.now().toIso8601String()};
       }
-      
-      // Add timestamp
-      if (timestamp != null) {
-        result['timestamp'] = timestamp;
-      }
-    } else {
-      // Fallback parsing if the format is different
-      // This is a placeholder for a more robust parsing mechanism
+    } catch (e) {
+      print('Error converting string to map: $e');
       result = {'prices': {}, 'timestamp': DateTime.now().toIso8601String()};
     }
     
