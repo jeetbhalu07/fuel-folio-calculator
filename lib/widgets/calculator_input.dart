@@ -125,6 +125,8 @@ class _CalculatorInputState extends State<CalculatorInput> {
                 setState(() {
                   _userEditing = false;
                 });
+                // Close keyboard when editing is complete
+                FocusManager.instance.primaryFocus?.unfocus();
               },
               onTapOutside: (_) {
                 setState(() {
@@ -132,6 +134,7 @@ class _CalculatorInputState extends State<CalculatorInput> {
                 });
                 FocusScope.of(context).unfocus();
               },
+              textInputAction: TextInputAction.done, // This will show the "Done" button on keyboard
               decoration: InputDecoration(
                 contentPadding: const EdgeInsets.symmetric(horizontal: 16),
                 border: InputBorder.none,

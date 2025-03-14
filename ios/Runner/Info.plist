@@ -52,6 +52,12 @@
 	<dict>
 		<key>NSAllowsArbitraryLoads</key>
 		<true/>
+		<key>NSAllowsArbitraryLoadsInWebContent</key>
+		<true/>
 	</dict>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>This app requires access to your location to provide personalized fuel pricing information near you.</string>
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>This app requires access to your location to provide personalized fuel pricing information near you.</string>
 </dict>
 </plist>

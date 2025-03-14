@@ -116,6 +116,7 @@ class _PurchaseCalculatorState extends State<PurchaseCalculator> {
                       child: TextField(
                         controller: _amountController,
                         keyboardType: TextInputType.number,
+                        textInputAction: TextInputAction.done, // Show Done button on keyboard
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
@@ -158,12 +159,15 @@ class _PurchaseCalculatorState extends State<PurchaseCalculator> {
                           setState(() {
                             _isEditing = false;
                           });
-                          FocusScope.of(context).unfocus();
+                          // Close keyboard when editing is complete
+                          FocusManager.instance.primaryFocus?.unfocus();
                         },
                         onSubmitted: (_) {
                           setState(() {
                             _isEditing = false;
                           });
+                          // Close keyboard
+                          FocusManager.instance.primaryFocus?.unfocus();
                         },
                       ),
                     ),
