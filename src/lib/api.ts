@@ -1,8 +1,7 @@
-// Fuel price API integration
-import { FuelCompany, FuelType } from './calculate';
 
-// API base URL 
-const API_BASE_URL = 'https://fuel-price-api.onrender.com/api/prices';
+// Fuel price API integration using Supabase
+import { supabase } from '@/integrations/supabase/client';
+import { FuelCompany, FuelType } from './calculate';
 
 // Interface for API response
 interface FuelPriceResponse {
@@ -24,12 +23,12 @@ let priceCache: {
   timestamp: 0
 };
 
-// Cache expiry in milliseconds (10 minutes)
-const CACHE_EXPIRY = 10 * 60 * 1000;
+// Cache expiry in milliseconds (5 minutes)
+const CACHE_EXPIRY = 5 * 60 * 1000;
 
 /**
- * Fetch latest fuel prices from API
- * Uses caching to avoid excessive API calls
+ * Fetch latest fuel prices from Supabase
+ * Uses caching to avoid excessive database calls
  */
 export const fetchFuelPrices = async (): Promise<FuelPriceResponse | null> => {
   const now = Date.now();
@@ -40,25 +39,57 @@ export const fetchFuelPrices = async (): Promise<FuelPriceResponse | null> => {
   }
   
   try {
-    console.log('Fetching fuel prices from API:', API_BASE_URL);
+    console.log('Fetching fuel prices from Supabase');
     
-    const response = await fetch(API_BASE_URL);
-    console.log('API status:', response.status);
+    // Fetch prices from Supabase
+    const { data: pricesData, error } = await supabase
+      .from('fuel_prices')
+      .select('company, fuel_type, price, updated_at')
+      .order('updated_at', { ascending: false });
     
-    if (response.ok) {
-      const apiData = await response.json();
-      
-      // Update cache with new data
-      priceCache = {
-        data: apiData,
-        timestamp: now
-      };
-      
-      return apiData;
-    } else {
-      console.error('API request failed:', response.status, response.statusText);
+    if (error) {
+      console.error('Supabase query error:', error);
       return generateMockPriceData();
     }
+    
+    if (!pricesData || pricesData.length === 0) {
+      console.error('No fuel prices found in database');
+      return generateMockPriceData();
+    }
+    
+    // Group prices by company and fuel type
+    const formattedData: { [company: string]: { [fuelType: string]: number } } = {};
+    let latestTimestamp = '';
+    
+    pricesData.forEach(item => {
+      // Track the latest timestamp
+      if (!latestTimestamp || item.updated_at > latestTimestamp) {
+        latestTimestamp = item.updated_at;
+      }
+      
+      // Create company entry if it doesn't exist
+      if (!formattedData[item.company]) {
+        formattedData[item.company] = {};
+      }
+      
+      // Add fuel price
+      formattedData[item.company][item.fuel_type] = Number(item.price);
+    });
+    
+    // Format the response
+    const apiData: FuelPriceResponse = {
+      success: true,
+      data: formattedData,
+      last_updated: latestTimestamp
+    };
+    
+    // Update cache with new data
+    priceCache = {
+      data: apiData,
+      timestamp: now
+    };
+    
+    return apiData;
   } catch (error) {
     console.error('Failed to fetch fuel prices:', error);
     return generateMockPriceData();
@@ -67,9 +98,10 @@ export const fetchFuelPrices = async (): Promise<FuelPriceResponse | null> => {
 
 /**
  * Generate mock fuel price data with small random fluctuations
+ * Used as a fallback when Supabase fetch fails
  */
 const generateMockPriceData = (): FuelPriceResponse => {
-  // Base prices from mypetrolprice.com
+  // Base prices
   const basePrices = {
     petrol: 96.72,
     diesel: 89.62,
@@ -111,7 +143,7 @@ const generateMockPriceData = (): FuelPriceResponse => {
 };
 
 /**
- * Update fuel companies with latest prices from API
+ * Update fuel companies with latest prices from Supabase
  */
 export const updateCompaniesWithApiPrices = async (companies: FuelCompany[]): Promise<FuelCompany[]> => {
   const priceData = await fetchFuelPrices();
@@ -123,12 +155,12 @@ export const updateCompaniesWithApiPrices = async (companies: FuelCompany[]): Pr
   // Create a copy of companies to update
   const updatedCompanies = [...companies];
   
-  // Update each company with prices from API
+  // Update each company with prices from Supabase
   updatedCompanies.forEach(company => {
     const apiCompanyData = priceData.data[company.type];
     if (!apiCompanyData) return;
     
-    // Update each fuel price that exists in the API response
+    // Update each fuel price that exists in the response
     Object.entries(apiCompanyData).forEach(([fuelType, price]) => {
       if (company.fuelPrices[fuelType] !== undefined) {
         company.fuelPrices[fuelType] = price;
@@ -162,7 +194,7 @@ export const startPricePolling = (callback: (prices: FuelPriceResponse) => void)
     if (prices) callback(prices);
   });
 
-  // Poll every 10 minutes
+  // Poll every 5 minutes
   const intervalId = setInterval(async () => {
     const prices = await fetchFuelPrices();
     if (prices) callback(prices);

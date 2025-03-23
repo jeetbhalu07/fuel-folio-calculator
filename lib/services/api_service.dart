@@ -7,9 +7,13 @@ import '../models/calculation.dart';
 import 'package:intl/intl.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'scraping_service.dart';
+import 'package:html/parser.dart';
+import 'package:html/dom.dart';
 
 class ApiService {
-  static const String _baseUrl = "https://fuel-price-api.onrender.com/api/prices";
+  // Updated to use Supabase URL
+  static const String _supabaseUrl = "https://guxaidzxhsvinjvmgpnv.supabase.co";
+  static const String _supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd1eGFpZHp4aHN2aW5qdm1ncG52Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDI3MTU2NzcsImV4cCI6MjA1ODI5MTY3N30.5Pxyrwk6cdD1WMwPRCcO2awFl4xOlbKFX-1l3o6lIMQ";
   
   static const String _cachePricesKey = 'cached_fuel_prices';
   static const String _cacheTimeKey = 'cached_fuel_prices_time';
@@ -32,16 +36,6 @@ class ApiService {
     final prefs = await SharedPreferences.getInstance();
     final now = DateTime.now();
     
-    // Try scraping first
-    final scrapingService = ScrapingService();
-    final scrapedData = await scrapingService.scrapeLatestPrices();
-    
-    if (scrapedData != null) {
-      print('Successfully scraped fuel prices');
-      return scrapedData;
-    }
-    
-    // If scraping fails, fall back to API or cached data
     // Check cache validity
     final cacheTimeStr = prefs.getString(_cacheTimeKey);
     if (cacheTimeStr != null) {
@@ -65,16 +59,56 @@ class ApiService {
     }
     
     try {
-      print('Fetching fuel prices from API: $_baseUrl');
+      print('Fetching fuel prices from Supabase');
       
+      // Fetch prices from Supabase using REST API
       final response = await http.get(
-        Uri.parse(_baseUrl),
+        Uri.parse('$_supabaseUrl/rest/v1/fuel_prices?select=company,fuel_type,price,updated_at'),
+        headers: {
+          'apikey': _supabaseKey,
+          'Content-Type': 'application/json',
+        },
       );
       
-      print('API Status code: ${response.statusCode}');
+      print('Supabase Status code: ${response.statusCode}');
       
       if (response.statusCode == 200) {
-        final responseData = json.decode(response.body);
+        final List<dynamic> pricesData = json.decode(response.body);
+        
+        if (pricesData.isEmpty) {
+          print('No fuel prices found in Supabase');
+          return _fallbackToPreviousPricesOrGenerate(prefs);
+        }
+        
+        // Format the data in the expected structure
+        final Map<String, Map<String, double>> formattedData = {};
+        String latestTimestamp = '';
+        
+        for (var item in pricesData) {
+          final company = item['company'];
+          final fuelType = item['fuel_type'];
+          final price = double.parse(item['price'].toString());
+          final updatedAt = item['updated_at'] ?? '';
+          
+          // Track latest timestamp
+          if (latestTimestamp.isEmpty || updatedAt.compareTo(latestTimestamp) > 0) {
+            latestTimestamp = updatedAt;
+          }
+          
+          // Create company entry if it doesn't exist
+          if (!formattedData.containsKey(company)) {
+            formattedData[company] = {};
+          }
+          
+          // Add fuel price
+          formattedData[company]![fuelType] = price;
+        }
+        
+        final responseData = {
+          'success': true,
+          'data': formattedData,
+          'last_updated': latestTimestamp.isNotEmpty ? latestTimestamp : now.toIso8601String(),
+        };
         
         // Cache the data
         prefs.setString(_cachePricesKey, json.encode(responseData));
@@ -82,12 +116,12 @@ class ApiService {
         
         return responseData;
       } else {
-        print('Failed to fetch data: ${response.statusCode}');
+        print('Failed to fetch data from Supabase: ${response.statusCode}');
         print('Response body: ${response.body}');
         return _fallbackToPreviousPricesOrGenerate(prefs);
       }
     } catch (e) {
-      print('Error fetching fuel prices: $e');
+      print('Error fetching fuel prices from Supabase: $e');
       return _fallbackToPreviousPricesOrGenerate(prefs);
     }
   }
